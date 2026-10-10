@@ -1,0 +1,104 @@
+@import "tailwindcss/base";
+
+/* ── Kiva design system — ported 1:1 from the HTML design (kiva/assets/kiva.css), same cascade order.
+   Only the parts the panel uses: no storefront header, drawers, search, product cards or footer ── */
+@import "../tailwind/kiva/base.css";
+@import "../tailwind/kiva/buttons.css";
+@import "../tailwind/kiva/tags.css";
+@import "../tailwind/kiva/sections.css";
+@import "../tailwind/kiva/forms.css";
+@import "../tailwind/kiva/boxes.css";
+@import "../tailwind/kiva/tabs.css";
+@import "../tailwind/kiva/stepper.css";
+@import "../tailwind/kiva/toastModal.css";
+@import "../tailwind/kiva/messenger.css";
+@import "../tailwind/kiva/pager.css";
+@import "../tailwind/kiva/multiSelect.css";
+
+/* ── kiva-fe additions (data images, error/loading blocks, skeletons, OTP boxes) ── */
+@import "../tailwind/components.css";
+
+/* ── panel: shell, tables, filters, forms, uploads (new — same tokens as the design system) ── */
+@import "../tailwind/admin/shell.css";
+@import "../tailwind/admin/table.css";
+@import "../tailwind/admin/forms.css";
+@import "../tailwind/admin/blocks.css";
+
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+/* ── Yekan Bakh — licensed "EN" cut; weights follow each file's real usWeightClass
+   (Bold 700, Heavy 900, Fat 1000) so the design's 600/800 resolve to Bold/Heavy.
+   Every weight ships a real `.woff2`; the `.woff` siblings are plain TrueType, kept as fallback ── */
+@font-face {
+	font-family: yekanBakh;
+	font-style: normal;
+	font-weight: 100;
+	font-display: swap;
+	src:
+		url("../../public/fonts/Yekan Bakh EN 01 Hairline.woff2") format("woff2"),
+		url("../../public/fonts/Yekan Bakh EN 01 Hairline.woff") format("truetype");
+}
+@font-face {
+	font-family: yekanBakh;
+	font-style: normal;
+	font-weight: 200;
+	font-display: swap;
+	src:
+		url("../../public/fonts/Yekan Bakh EN 02 Thin.woff2") format("woff2"),
+		url("../../public/fonts/Yekan Bakh EN 02 Thin.woff") format("truetype");
+}
+@font-face {
+	font-family: yekanBakh;
+	font-style: normal;
+	font-weight: 300;
+	font-display: swap;
+	src:
+		url("../../public/fonts/Yekan Bakh EN 03 Light.woff2") format("woff2"),
+		url("../../public/fonts/Yekan Bakh EN 03 Light.woff") format("truetype");
+}
+@font-face {
+	font-family: yekanBakh;
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src:
+		url("../../public/fonts/Yekan Bakh EN 04 Regular.woff2") format("woff2"),
+		url("../../public/fonts/Yekan Bakh EN 04 Regular.woff") format("truetype");
+}
+@font-face {
+	font-family: yekanBakh;
+	font-style: normal;
+	font-weight: 500;
+	font-display: swap;
+	src:
+		url("../../public/fonts/Yekan Bakh EN 05 Medium.woff2") format("woff2"),
+		url("../../public/fonts/Yekan Bakh EN 05 Medium.woff") format("truetype");
+}
+@font-face {
+	font-family: yekanBakh;
+	font-style: normal;
+	font-weight: 600 700;
+	font-display: swap;
+	src:
+		url("../../public/fonts/Yekan Bakh EN 06 Bold.woff2") format("woff2"),
+		url("../../public/fonts/Yekan Bakh EN 06 Bold.woff") format("truetype");
+}
+@font-face {
+	font-family: yekanBakh;
+	font-style: normal;
+	font-weight: 800 900;
+	font-display: swap;
+	src:
+		url("../../public/fonts/Yekan Bakh EN 07 Heavy.woff2") format("woff2"),
+		url("../../public/fonts/Yekan Bakh EN 07 Heavy.woff") format("truetype");
+}
+@font-face {
+	font-family: yekanBakh;
+	font-style: normal;
+	font-weight: 1000;
+	font-display: swap;
+	src:
+		url("../../public/fonts/Yekan Bakh EN 08 Fat.woff2") format("woff2"),
+		url("../../public/fonts/Yekan Bakh EN 08 Fat.woff") format("truetype");
+}

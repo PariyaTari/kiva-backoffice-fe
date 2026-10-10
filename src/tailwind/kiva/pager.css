@@ -1,0 +1,6 @@
+/* ── Kiva design system · Pagination (ported 1:1 from kiva/assets/kiva.css) ── */
+.pager{display:flex;justify-content:center;gap:6px;margin-top:40px}
+.pager a,.pager span{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:14px;transition:background .2s}
+.pager a:hover{background:var(--lilac-50)}
+.pager .on{background:var(--ink);color:#fff}
+.pager svg{width:18px;height:18px}

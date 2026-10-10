@@ -1,0 +1,20 @@
+/* ── Kiva design system · Multi-select autocomplete (ported 1:1 from kiva/assets/kiva.css) ── */
+.ms{position:relative}
+.ms-box{min-height:50px;border:1.5px solid var(--line-2);border-radius:var(--r-sm);padding:6px 10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;cursor:text;background:#fff;transition:border-color .2s,box-shadow .2s}
+.ms.open .ms-box{border-color:var(--purple);box-shadow:0 0 0 4px rgba(91,62,140,.12)}
+.ms-chips{display:contents}
+.ms-chip{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 6px 0 4px;padding-inline-start:10px;border-radius:var(--pill);background:var(--tag);border:1px solid var(--tag-border);color:var(--tag-text);font-size:12.5px;font-weight:600;animation:fadeUp .25s var(--ease)}
+.ms-chip button{width:20px;height:20px;border-radius:50%;border:0;background:rgba(62,42,99,.1);display:grid;place-items:center;cursor:pointer;padding:0;color:inherit}
+.ms-chip button:hover{background:var(--purple);color:#fff}
+.ms-chip button svg{width:11px;height:11px}
+.ms-box input{flex:1;min-width:70px;border:0;outline:0;font:inherit;font-size:14px;height:34px;background:transparent;color:var(--ink)}
+.ms-list{position:absolute;top:calc(100% + 6px);right:0;left:0;background:#fff;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);max-height:250px;overflow:auto;padding:6px;z-index:30;opacity:0;visibility:hidden;transform:translateY(-6px);transition:opacity .2s,transform .25s var(--ease),visibility .2s}
+.ms.open .ms-list{opacity:1;visibility:visible;transform:none}
+.ms-opt{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer;font-size:14px}
+.ms-opt:hover,.ms-opt.hl{background:var(--lilac-50)}
+.ms-opt .cb{width:18px;height:18px;border-radius:6px;border:1.5px solid var(--line-2);display:grid;place-items:center;flex:none;transition:all .2s}
+.ms-opt.sel .cb{background:var(--purple);border-color:var(--purple)}
+.ms-opt.sel .cb::after{content:"";width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.ms-opt .swatch-dot{width:16px;height:16px}
+.ms-opt .cnt{margin-inline-start:auto;font-size:12px;color:var(--ink-50)}
+.ms-none{padding:12px;text-align:center;color:var(--ink-50);font-size:13px}

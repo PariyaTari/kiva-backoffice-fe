@@ -1,0 +1,93 @@
+/* ── Panel forms: sections, sticky save bar, chips, money/date inputs, media uploads ── */
+.fsec{background:#fff;border:1px solid var(--line);border-radius:var(--r-xl);padding:22px 24px;margin-bottom:16px}
+.fsec > h3{font-size:16px;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.fsec > h3 svg{width:19px;height:19px;color:var(--purple)}
+.fsec > .d{font-size:12.5px;color:var(--ink-50);margin-bottom:16px}
+.fsec > h3 + .form-grid,.fsec > h3 + .stack{margin-top:14px}
+.form-grid.g3{grid-template-columns:repeat(3,1fr)}
+.form-grid.g4{grid-template-columns:repeat(4,1fr)}
+.stack{display:grid;gap:14px}
+.edit-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.edit-grid > aside{position:sticky;top:calc(var(--top-h) + 16px);display:grid;gap:16px}
+.savebar{position:sticky;bottom:0;z-index:20;display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:12px 16px;margin-top:8px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm)}
+.savebar .msg{margin-inline-end:auto;font-size:12.5px;color:var(--ink-50)}
+.field .counter{font-size:11.5px;color:var(--ink-50);margin-inline-start:auto}
+.field .input.sm,.field .select.sm{height:42px;font-size:13.5px}
+.input[readonly]{background:var(--lilac-50);color:var(--ink-70)}
+.input:disabled,.select:disabled,.textarea:disabled{background:#F7F5FA;color:var(--ink-50);cursor:not-allowed}
+.textarea.code{font-family:Consolas,"Courier New",monospace;font-size:13px;direction:ltr;text-align:left;line-height:1.6}
+
+/* chips input (tags, highlights) — the design's `.ms-box` / `.ms-chip` */
+.chips-in .ms-box{cursor:text}
+.chips-in .ms-chip{max-width:100%}
+.chips-in .ms-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* money / number with a unit */
+.unit-in{position:relative}
+.unit-in .input{padding-left:58px}
+.unit-in .u{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ink-50);pointer-events:none}
+
+/* Jalali date + time */
+.jdt{display:flex;gap:6px;direction:rtl}
+.jdt .input{text-align:center;padding:0 8px}
+.jdt .y{width:78px}.jdt .m,.jdt .dd{width:56px}.jdt .t{width:84px;direction:ltr}
+.jdt .sep{align-self:center;color:var(--ink-30)}
+.jdt .x{align-self:center}
+
+/* option rows (radio list on white) */
+.radios{display:flex;gap:8px;flex-wrap:wrap}
+.radios .opt-card{padding:10px 14px;gap:10px}
+.radios .opt-card .t{font-size:13.5px}
+
+/* media uploads */
+.upl{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1.5px dashed var(--tag-border);border-radius:var(--r-lg);padding:22px 16px;text-align:center;cursor:pointer;color:var(--ink-70);font-size:13px;background:#fff;transition:background .2s,border-color .2s}
+.upl:hover,.upl.drag{background:var(--lilac-50);border-color:var(--purple)}
+.upl svg{width:28px;height:28px;color:var(--purple)}
+.upl b{color:var(--ink);font-size:14px}
+.upl input{display:none}
+.upl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px;margin-top:12px}
+.upl-item{position:relative;border:1px solid var(--line);border-radius:var(--r);background:var(--lilac-50);overflow:hidden;display:flex;flex-direction:column}
+.upl-item .ph{aspect-ratio:1;display:grid;place-items:center;padding:6px}
+.upl-item .ph img,.upl-item .ph video{width:100%;height:100%;object-fit:contain;border-radius:8px}
+.upl-item .ph svg{width:28px;height:28px;color:var(--ink-30)}
+.upl-item .x{position:absolute;top:4px;left:4px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.92);border:0;display:grid;place-items:center;cursor:pointer;color:var(--danger);box-shadow:var(--shadow-sm)}
+.upl-item .x svg{width:14px;height:14px}
+.upl-item .prim{position:absolute;top:4px;right:4px}
+.upl-item .meta{padding:6px;display:grid;gap:4px;background:#fff;border-top:1px solid var(--line)}
+.upl-item .meta .select,.upl-item .meta .input{height:32px;font-size:12px;padding:0 8px;border-radius:8px}
+.upl-item .meta .select{padding-left:26px;background-position:left 8px center;background-size:13px}
+.upl-item .bar{height:4px;background:var(--tag);border-radius:4px;overflow:hidden}
+.upl-item .bar i{display:block;height:100%;background:var(--purple);transition:width .2s}
+.upl-item.err{border-color:#f0c4cb;background:var(--danger-bg)}
+.upl-item.err .meta{color:var(--danger);font-size:11.5px;font-weight:600}
+.upl-one{display:flex;align-items:center;gap:14px}
+.upl-one .ph{width:96px;height:96px;border-radius:var(--r);background:var(--lilac-50);border:1px solid var(--line);display:grid;place-items:center;overflow:hidden;flex:none}
+.upl-one .ph img{width:100%;height:100%;object-fit:cover}
+.upl-one .ph svg{width:28px;height:28px;color:var(--ink-30)}
+.upl-one .acts{display:flex;gap:6px;flex-wrap:wrap}
+
+/* sortable list rows (FAQ, announcements, blog blocks) */
+.rows{display:grid;gap:10px}
+.row-card{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 16px;display:grid;gap:12px}
+.row-card .rh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row-card .rh b{font-size:14px}
+.row-card .rh .tag{font-size:11px}
+.row-card .rh .acts{margin-inline-start:auto;display:flex;gap:2px}
+.row-card .rh .icon-btn{width:34px;height:34px}
+.row-card .rh .icon-btn svg{width:17px;height:17px}
+.row-card .rh .icon-btn.del:hover{background:var(--danger-bg);color:var(--danger)}
+.add-row{display:flex;align-items:center;justify-content:center;gap:8px;border:1.5px dashed var(--tag-border);border-radius:var(--r-lg);padding:14px;background:none;cursor:pointer;font-weight:700;color:var(--purple);width:100%;font-size:14px}
+.add-row:hover{background:#fff}
+.add-row svg{width:20px;height:20px}
+
+@media (max-width:1100px){
+  .edit-grid{grid-template-columns:minmax(0,1fr)}
+  .edit-grid > aside{position:static}
+  .form-grid.g3,.form-grid.g4{grid-template-columns:1fr 1fr}
+}
+@media (max-width:760px){
+  .fsec{padding:18px 16px}
+  .form-grid.g3,.form-grid.g4{grid-template-columns:1fr}
+}
+.input[data-invalid]{border-color:var(--danger)}
+.stack > *,.rows > *,.row-card > *,.m-body > *{min-width:0}

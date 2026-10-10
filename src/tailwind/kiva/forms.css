@@ -1,0 +1,45 @@
+/* ── Kiva design system · Forms (ported 1:1 from kiva/assets/kiva.css) ── */
+.field{display:flex;flex-direction:column;gap:7px;min-width:0}
+.field > label{font-size:13px;font-weight:700}
+.field > label .opt{font-weight:400;color:var(--ink-50);font-size:12px}
+.input,.select,.textarea{width:100%;height:50px;border:1.5px solid var(--line-2);border-radius:var(--r-sm);padding:0 16px;font:inherit;font-size:14.5px;background:#fff;color:var(--ink);transition:border-color .2s,box-shadow .2s}
+.textarea{height:auto;min-height:120px;padding:14px 16px;resize:vertical;line-height:1.8}
+.select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232A1F3D' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:left 14px center;background-size:16px;padding-left:40px;cursor:pointer}
+.input:hover,.select:hover,.textarea:hover{border-color:var(--ink-30)}
+.input:focus,.select:focus,.textarea:focus{outline:0;border-color:var(--purple);box-shadow:0 0 0 4px rgba(91,62,140,.12)}
+.input::placeholder,.textarea::placeholder{color:var(--ink-30)}
+.field .err{display:none;font-size:12px;color:var(--danger);font-weight:500}
+.field.error .input,.field.error .select,.field.error .textarea{border-color:var(--danger)}
+.field.error .err{display:block}
+.field .help{font-size:12px;color:var(--ink-50)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-grid .full{grid-column:1/-1}
+.input-group{display:flex;gap:8px}
+.input-group .input{flex:1}
+
+.switch{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;user-select:none}
+.switch input{position:absolute;opacity:0;pointer-events:none}
+.switch .track{position:relative;width:46px;height:27px;border-radius:99px;background:#DDD3EA;flex:none;transition:background .3s}
+.switch .track::after{content:"";position:absolute;top:3px;right:3px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(42,31,61,.2);transition:transform .35s var(--ease-bounce)}
+.switch input:checked + .track{background:var(--purple)}
+.switch input:checked + .track::after{transform:translateX(-19px)}
+.switch input:focus-visible + .track{outline:2px solid var(--purple);outline-offset:2px}
+.switch .lbl{font-weight:600;font-size:14px}
+
+.check{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-size:14px}
+.check input{appearance:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line-2);display:grid;place-items:center;cursor:pointer;transition:all .2s;margin:0;flex:none}
+.check input:checked{background:var(--purple);border-color:var(--purple)}
+.check input:checked::after{content:"";width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+
+/* option cards (radio) */
+.opt-card{position:relative;display:flex;align-items:center;gap:14px;padding:16px 18px;border:1.5px solid var(--line-2);border-radius:var(--r);cursor:pointer;transition:border-color .25s,background .25s,box-shadow .25s}
+.opt-card:hover{border-color:var(--tag-border)}
+.opt-card input{position:absolute;opacity:0;pointer-events:none}
+.opt-card .radio{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line-2);flex:none;display:grid;place-items:center;transition:all .25s}
+.opt-card .radio::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--purple);transform:scale(0);transition:transform .3s var(--ease-bounce)}
+.opt-card:has(input:checked){border-color:var(--purple);background:var(--lilac-50);box-shadow:0 0 0 3px rgba(91,62,140,.08)}
+.opt-card:has(input:checked) .radio{border-color:var(--purple)}
+.opt-card:has(input:checked) .radio::after{transform:scale(1)}
+.opt-card .t{font-weight:700;font-size:14.5px}
+.opt-card .d{font-size:12.5px;color:var(--ink-50)}
+.opt-card .end{margin-inline-start:auto;font-weight:700;font-size:14px;white-space:nowrap}

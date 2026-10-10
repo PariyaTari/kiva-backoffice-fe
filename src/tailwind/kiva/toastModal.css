@@ -1,0 +1,17 @@
+/* ── Kiva design system · Toast / modal (ported 1:1 from kiva/assets/kiva.css) ── */
+.toasts{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:10px;align-items:center;pointer-events:none;width:max-content;max-width:calc(100vw - 32px)}
+.toast{display:flex;align-items:center;gap:12px;background:var(--ink);color:#fff;padding:12px 14px 12px 18px;border-radius:var(--pill);box-shadow:var(--shadow-lg);font-size:13.5px;font-weight:500;pointer-events:auto;animation:toastIn .5s var(--ease-bounce)}
+.toast.out{animation:toastOut .35s var(--ease) forwards}
+.toast .ti{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center;flex:none}
+.toast .ti svg{width:16px;height:16px}
+.toast a,.toast button.ta{color:var(--lilac);font-weight:700;background:none;border:0;cursor:pointer;padding:0 6px;white-space:nowrap}
+@keyframes toastIn{from{opacity:0;transform:translateY(20px) scale(.9)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(10px) scale(.95)}}
+.modal{position:fixed;inset:0;z-index:150;display:grid;place-items:center;padding:16px;visibility:hidden}
+.modal.on{visibility:visible}
+.modal-bg{position:absolute;inset:0;background:rgba(42,31,61,.38);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;transition:opacity .35s}
+.modal.on .modal-bg{opacity:1}
+.modal-box{position:relative;background:#fff;border-radius:var(--r-xl);width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:28px;box-shadow:var(--shadow-lg);opacity:0;transform:translateY(24px) scale(.97);transition:opacity .35s,transform .45s var(--ease)}
+.modal.on .modal-box{opacity:1;transform:none}
+.modal-x{position:absolute;top:14px;left:14px}
+.modal-box h3{font-size:19px;margin-bottom:6px}

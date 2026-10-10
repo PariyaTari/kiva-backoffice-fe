@@ -1,0 +1,23 @@
+/* ── Kiva design system · Sections (ported 1:1 from kiva/assets/kiva.css) ── */
+.section{padding:72px 0}
+.section-sm{padding:44px 0}
+.sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:34px}
+.sec-head .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--purple);margin-bottom:6px}
+.sec-head .eyebrow svg{width:16px;height:16px}
+.sec-head h2{font-size:clamp(1.5rem,2.6vw,2.15rem)}
+.sec-head p{color:var(--ink-50);margin-top:6px;max-width:520px}
+.sec-head .more{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:14px;color:var(--purple);white-space:nowrap}
+.sec-head .more svg{width:18px;height:18px;transition:transform .3s var(--ease)}
+.sec-head .more:hover svg{transform:translateX(-5px)}
+.center-head{text-align:center;justify-content:center;flex-direction:column;align-items:center}
+.center-head p{margin-inline:auto}
+
+/* page hero for inner pages */
+.page-hero{position:relative;padding:calc(var(--top) + 36px) 0 54px;background:var(--lilac-50);border-radius:0 0 var(--r-xl) var(--r-xl);overflow:hidden}
+.page-hero h1{font-size:clamp(1.8rem,3.4vw,2.6rem)}
+.page-hero p{color:var(--ink-70);margin-top:8px;max-width:560px}
+.page-hero .deco{position:absolute;pointer-events:none}
+.crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:13px;color:var(--ink-50);margin-bottom:14px}
+.crumbs a:hover{color:var(--purple)}
+.crumbs svg{width:14px;height:14px}
+.crumbs span:last-child{color:var(--ink);font-weight:600}

@@ -1,0 +1,30 @@
+/* ── Kiva design system · Buttons (ported 1:1 from kiva/assets/kiva.css) ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 24px;border-radius:12px;border:1.5px solid transparent;font-weight:600;font-size:14.5px;cursor:pointer;white-space:nowrap;transition:background .25s,color .25s,border-color .25s,transform .25s var(--ease),box-shadow .25s;user-select:none}
+.btn svg{width:18px;height:18px;flex:none;transition:transform .3s var(--ease)}
+.btn:hover .i-arrow{transform:translateX(-4px)}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--purple);color:#fff;border-color:var(--purple)}
+.btn-primary:hover{background:var(--purple-700);border-color:var(--purple-700);box-shadow:0 12px 26px -12px rgba(91,62,140,.7);transform:translateY(-1px)}
+.btn-dark{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn-dark:hover{background:#1c142b;transform:translateY(-1px)}
+.btn-outline{border-color:rgba(42,31,61,.38);color:var(--ink);background:#fff}
+.btn-outline:hover{border-color:var(--ink);background:var(--ink);color:#fff}
+.btn-soft{background:var(--tag);color:var(--tag-text);border-color:var(--tag-border)}
+.btn-soft:hover{background:var(--purple);border-color:var(--purple);color:#fff}
+.btn-white{background:#fff;color:var(--ink);border-color:rgba(42,31,61,.16);box-shadow:0 2px 6px -2px rgba(42,31,61,.14)}
+.btn-white:hover{border-color:var(--ink);box-shadow:var(--shadow)}
+.btn-ghost-light{background:transparent;color:#fff;border-color:rgba(255,255,255,.6)}
+.btn-ghost-light:hover{background:#fff;color:var(--ink);border-color:#fff}
+.btn-link{height:auto;padding:0;color:var(--purple);border:0;background:none;font-weight:600}
+.btn-link:hover{text-decoration:underline;text-underline-offset:5px}
+.btn-sm{height:38px;padding:0 16px;font-size:13px;border-radius:10px}
+.btn-lg{height:54px;padding:0 30px;font-size:15.5px;border-radius:14px}
+.btn-block{width:100%}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.btn.loading{pointer-events:none;color:transparent!important;position:relative}
+.btn.loading::after{content:"";position:absolute;width:20px;height:20px;border-radius:50%;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;animation:spin .7s linear infinite}
+.btn-soft.loading::after,.btn-outline.loading::after{border-color:rgba(91,62,140,.25);border-top-color:var(--purple)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.icon-btn{width:42px;height:42px;border-radius:50%;display:inline-grid;place-items:center;background:transparent;border:0;cursor:pointer;color:var(--ink);transition:background .2s,transform .2s;position:relative;flex:none}
+.icon-btn:hover{background:rgba(91,62,140,.09)}
+.icon-btn svg{width:22px;height:22px}

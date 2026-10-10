@@ -1,0 +1,213 @@
+/* ── kiva-fe component layer — things the static design didn't need ── */
+
+/* Data images. The design drew products as inline SVG illustrations; real data arrives as image URLs,
+   so an <img class="kv-img"> fills the same box the SVG did (`width/height:100%`). */
+img.kv-img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+img.kv-img.cover {
+	object-fit: cover;
+}
+/* the design's per-context rules for the illustration SVG, re-applied to data images */
+.mg-stage .fr .kv-img {
+	filter: drop-shadow(0 18px 18px rgba(42, 31, 61, 0.14));
+}
+
+/* ── Error block (ErrorComponent2) ── */
+.kv-err {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	text-align: center;
+	padding: 34px 20px;
+	border-radius: var(--r-xl);
+	color: var(--ink-70);
+}
+.kv-err.bordered {
+	background: #fff;
+	border: 1.5px dashed var(--tag-border);
+}
+.kv-err .ei {
+	width: 52px;
+	height: 52px;
+	border-radius: 16px;
+	background: var(--danger-bg);
+	color: var(--danger);
+	display: grid;
+	place-items: center;
+}
+.kv-err .ei svg {
+	width: 24px;
+	height: 24px;
+}
+.kv-err p {
+	font-size: 14px;
+	max-width: 420px;
+}
+.kv-err .acts {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	justify-content: center;
+	margin-top: 6px;
+}
+/* compact bar (height < 72) */
+.kv-err.bar {
+	flex-direction: row;
+	gap: 10px;
+	padding: 0 6px 0 14px;
+	padding-inline-start: 14px;
+	text-align: right;
+	border-radius: var(--r-sm);
+	background: var(--danger-bg);
+	color: var(--danger);
+	border: 0;
+}
+.kv-err.bar .ei {
+	width: auto;
+	height: auto;
+	background: none;
+}
+.kv-err.bar .ei svg {
+	width: 18px;
+	height: 18px;
+}
+.kv-err.bar p {
+	flex: 1;
+	font-size: 13px;
+	font-weight: 600;
+	max-width: none;
+}
+.kv-err.bar .acts {
+	margin: 0;
+	flex-wrap: nowrap;
+	gap: 2px;
+}
+.kv-err.bar .icon-btn {
+	width: 36px;
+	height: 36px;
+	color: var(--danger);
+}
+.kv-err.bar .icon-btn svg {
+	width: 18px;
+	height: 18px;
+}
+
+/* ── Loading block ── */
+.kv-loading {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	padding: 40px 10px;
+	color: var(--ink-50);
+	font-size: 14px;
+}
+.kv-spin {
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	border: 3px solid var(--tag);
+	border-top-color: var(--purple);
+	animation: spin 0.8s linear infinite;
+	flex: none;
+}
+
+/* ── Skeletons (first load of card grids) ── */
+.kv-skel {
+	background: linear-gradient(90deg, var(--lilac-50) 0%, #fbf9fd 50%, var(--lilac-50) 100%);
+	background-size: 200% 100%;
+	animation: kvShimmer 1.4s ease-in-out infinite;
+	border-radius: 10px;
+}
+.pcard.is-skel {
+	pointer-events: none;
+}
+.pcard.is-skel .pcard-media {
+	animation: kvShimmer 1.4s ease-in-out infinite;
+	background: linear-gradient(90deg, var(--lilac-50) 0%, #fbf9fd 50%, var(--lilac-50) 100%);
+	background-size: 200% 100%;
+}
+@keyframes kvShimmer {
+	from {
+		background-position: 200% 0;
+	}
+	to {
+		background-position: -200% 0;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.kv-skel,
+	.pcard.is-skel .pcard-media {
+		animation: none;
+	}
+}
+
+/* ── SMS code boxes (`ui/otpInput`) — from login.html's page style, shared by login and the account's phone change ── */
+.otp {
+	display: flex;
+	gap: 10px;
+	justify-content: center;
+	direction: ltr;
+	margin: 6px 0 16px;
+}
+.otp input {
+	width: 58px;
+	height: 66px;
+	border-radius: var(--r);
+	border: 1.5px solid var(--line-2);
+	text-align: center;
+	font: inherit;
+	font-size: 26px;
+	font-weight: 800;
+	color: var(--ink);
+	transition:
+		border-color 0.2s,
+		box-shadow 0.2s,
+		transform 0.2s;
+	background: #fff;
+}
+.otp input:focus {
+	outline: 0;
+	border-color: var(--purple);
+	box-shadow: 0 0 0 4px rgba(91, 62, 140, 0.12);
+	transform: translateY(-2px);
+}
+.otp input.filled {
+	border-color: var(--tag-border);
+	background: var(--lilac-50);
+}
+.otp input:disabled {
+	opacity: 0.55;
+}
+.otp.err input {
+	border-color: var(--danger);
+	animation: otpShake 0.4s;
+}
+.otp.ok input {
+	border-color: var(--success);
+	background: var(--success-bg);
+}
+@media (max-width: 760px) {
+	.otp {
+		gap: 7px;
+	}
+	.otp input {
+		width: 50px;
+		height: 58px;
+		font-size: 22px;
+	}
+}
+@keyframes otpShake {
+	25% {
+		transform: translateX(-6px);
+	}
+	75% {
+		transform: translateX(6px);
+	}
+}

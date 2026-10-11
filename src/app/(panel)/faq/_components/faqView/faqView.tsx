@@ -6,16 +6,19 @@ import { PANEL_ERRORS as ERROR_BEHAVIOUR } from "@/app/(panel)/_utils/apiError";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
 import Loading from "@/app/_components/common/loading/loading";
 import { Icon } from "@/app/_components/icon/icons";
+import HtmlField from "@/app/_components/panel/htmlField/htmlField";
 import IconSelect from "@/app/_components/panel/iconSelect/iconSelect";
 import PageHead from "@/app/_components/panel/pageHead/pageHead";
+import UnsavedGuard from "@/app/_components/panel/unsavedGuard/unsavedGuard";
 import Button from "@/app/_components/ui/button/button";
 import Input from "@/app/_components/ui/input/input";
 import Switch from "@/app/_components/ui/switch/switch";
-import Textarea from "@/app/_components/ui/textarea/textarea";
+import { STORE_REFRESH_MINUTES } from "@/config/global";
 import { toast } from "@/store/notification.store";
 import { FaqGroup, FaqItem } from "@/types/content.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
+import { onSiteWithin } from "@/utils/format";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
 import { withMappedError } from "@/utils/withMappedError";
 import { FaqEndpoints } from "../../_api/faqEndpoints";
@@ -56,7 +59,7 @@ export default function FaqView() {
 			),
 		meta: { showNotification: true },
 		onSuccess: (saved) => {
-			toast("سوالات متداول ذخیره شد", { icon: "check" });
+			toast(`سوالات متداول ذخیره شد — ${onSiteWithin(STORE_REFRESH_MINUTES.faq)}`, { icon: "check" });
 			setBase(saved);
 			setGroups(saved);
 			queryClient.invalidateQueries({ queryKey: ["faq"] });
@@ -139,9 +142,8 @@ export default function FaqView() {
 											</span>
 										</div>
 										<Input aria-label="سؤال" value={q.question} onChange={(e) => patchQuestion(gi, qi, { question: e.target.value })} error={errors[`[${gi}].questions[${qi}].question`]} />
-										<Textarea
+										<HtmlField
 											aria-label="پاسخ (HTML)"
-											className="code"
 											value={q.answer}
 											onChange={(e) => patchQuestion(gi, qi, { answer: e.target.value })}
 											error={errors[`[${gi}].questions[${qi}].answer`]}
@@ -168,6 +170,7 @@ export default function FaqView() {
 				</button>
 			</div>
 			{!!renamed.length && <p className="note danger" style={{ marginTop: 12 }}>anchorهای {renamed.join("، ")} که سایت به آن‌ها لینک داده دیگر در لیست نیستند.</p>}
+			<UnsavedGuard dirty={dirty} />
 			<div className="savebar">
 				<span className="msg">{dirty ? "تغییرات ذخیره‌نشده داری." : "همه‌چیز ذخیره است."}</span>
 				{dirty && (

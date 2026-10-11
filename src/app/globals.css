@@ -23,6 +23,7 @@
 @import "../tailwind/admin/table.css";
 @import "../tailwind/admin/forms.css";
 @import "../tailwind/admin/blocks.css";
+@import "../tailwind/admin/print.css";
 
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";

@@ -15,6 +15,7 @@ import { formatDateTime, formatToman } from "@/utils/format";
 import { withMappedError } from "@/utils/withMappedError";
 import { OrdersEndpoints } from "../../_api/ordersEndpoints";
 import { ERROR_BEHAVIOUR, isOrderNotFoundError } from "../../_utils/apiError";
+import { isPackable } from "../../_utils/packing";
 import MediaEditModal from "../mediaEditModal/mediaEditModal";
 import OrderItems from "../orderItems/orderItems";
 import OrderMedia from "../orderMedia/orderMedia";
@@ -23,6 +24,7 @@ import OrderNotes from "../orderNotes/orderNotes";
 import OrderProgress from "../orderProgress/orderProgress";
 import OrderSide from "../orderSide/orderSide";
 import OrderTimeline from "../orderTimeline/orderTimeline";
+import PackingSlips from "../packingSlip/packingSlip";
 import RefundModal from "../refundModal/refundModal";
 import SendMediaModal from "../sendMediaModal/sendMediaModal";
 import ShipmentModal from "../shipmentModal/shipmentModal";
@@ -103,6 +105,11 @@ export default function OrderDetailView({ code }: { code: string }) {
 								تغییر وضعیت
 							</Button>
 						)}
+						{isPackable(o.status) && (
+							<Button size="sm" variant="white" onClick={() => window.print()} iconStart={<Icon name="print" />}>
+								برگه‌ی ارسال
+							</Button>
+						)}
 					</>
 				}
 			/>
@@ -128,6 +135,7 @@ export default function OrderDetailView({ code }: { code: string }) {
 			<RefundModal order={o} open={modal === "refund"} onClose={close} />
 			<MediaEditModal order={o} open={modal === "media"} onClose={close} />
 			<SendMediaModal order={o} open={modal === "send"} onClose={close} />
+			{isPackable(o.status) && <PackingSlips orders={[o]} />}
 		</>
 	);
 }

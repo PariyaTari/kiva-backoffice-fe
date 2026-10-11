@@ -55,6 +55,7 @@ let rnd = 42;
 const rand = () => ((rnd = (rnd * 16807) % 2147483647) - 1) / 2147483646;
 const pick = (arr) => arr[Math.floor(rand() * arr.length)];
 const digits = (n) => Array.from({ length: n }, () => Math.floor(rand() * 10)).join("");
+let CHANGE_SEQ = 0;
 
 const customers = users.filter((u) => u.roles.length === 1);
 const live = products.filter((p) => p.status === "ACTIVE");
@@ -133,9 +134,12 @@ function makeOrder(u, status, placedAgo, opts = {}) {
 	if (status === "CHANGE_REQUESTED") {
 		const it = o.items[0];
 		const { p } = variantById(it.variantId);
-		const other = p.variants.find((v) => v.id !== it.variantId) || p.variants[0];
+		// every other one asks for another model (a «محصولات مشابه» pick — same category), the rest for another colour
+		const model = ++CHANGE_SEQ % 2 === 0 && products.find((x) => x.status === "ACTIVE" && x.id !== p.id && x.categoryId === p.categoryId);
+		const other = model ? model.variants.find((v) => v.isDefault) || model.variants[0] : p.variants.find((v) => v.id !== it.variantId) || p.variants[0];
+		const note = model ? `${model.name} ${colorView(other.colorKey).name} رو بیشتر می‌پسندم، می‌شه عوضش کنید؟` : `اگه ${colorView(other.colorKey).name}ش موجوده همون رو بفرستید.`;
 		o.mediaStatus = "CHANGE_REQUESTED";
-		o.feedback = { decision: "REQUEST_CHANGE", changeType: "COLOR", orderItemId: it.id, desiredVariantId: other.id, note: `اگه ${colorView(other.colorKey).name}ش موجوده همون رو بفرستید.`, at: iso(paidAt + 23 * HOUR) };
+		o.feedback = { decision: "REQUEST_CHANGE", changeType: model ? "MODEL" : "COLOR", orderItemId: it.id, desiredVariantId: other.id, note, at: iso(paidAt + 23 * HOUR) };
 		event(o, "CHANGE_REQUESTED", paidAt + 23 * HOUR);
 	}
 	if (["SHIPPED", "DELIVERED", "RETURN_REQUESTED", "RETURNED", "REFUNDED"].includes(status)) ship(paidAt + 30 * HOUR);
@@ -188,6 +192,17 @@ orders.filter((o) => o.status === "PROCESSING").slice(0, 2).forEach((o) => {
 	alone.group = { code: "SG-3022", orderCodes: [alone.code], releaseAt: alone.paidAt + 4 * DAY };
 }
 orders.sort((a, b) => b.placedAt - a.placedAt);
+
+// Test aid: a shopper just paid — `POST /api/v1/__mock/new-order` puts a fresh PROCESSING order on top of the queue
+// (the panel's «سفارش تازه رسید» banner and the live counters).
+let NEW_SEQ = 0;
+route("POST", "/__mock/new-order", () => {
+	const o = makeOrder(pick(customers), "PROCESSING", -Date.now() + NOW);
+	o.code = `KV-${230000 + ++NEW_SEQ}`;
+	orders.pop();
+	orders.unshift(o);
+	return { code: o.code };
+});
 
 // returns: one per returning order + a decided pair on delivered ones
 function makeReturn(o, status, reason, ago) {

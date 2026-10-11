@@ -6,17 +6,19 @@ import { PANEL_ERRORS as ERROR_BEHAVIOUR } from "@/app/(panel)/_utils/apiError";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
 import Loading from "@/app/_components/common/loading/loading";
 import { Icon } from "@/app/_components/icon/icons";
+import HtmlField from "@/app/_components/panel/htmlField/htmlField";
 import PageHead from "@/app/_components/panel/pageHead/pageHead";
 import SeoFields from "@/app/_components/panel/seoFields/seoFields";
+import UnsavedGuard from "@/app/_components/panel/unsavedGuard/unsavedGuard";
 import Button from "@/app/_components/ui/button/button";
 import Input from "@/app/_components/ui/input/input";
-import Textarea from "@/app/_components/ui/textarea/textarea";
-import { STORE_URL } from "@/config/global";
+import { STORE_REFRESH_MINUTES, STORE_URL } from "@/config/global";
 import { toast } from "@/store/notification.store";
 import { StaticPage } from "@/types/content.type";
 import { toErrorView } from "@/utils/apiError";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
-import { formatDateTime } from "@/utils/format";
+import { toPersianDigits } from "@/utils/digits";
+import { formatDateTime, onSiteWithin } from "@/utils/format";
 import { withMappedError } from "@/utils/withMappedError";
 import { isPageMissingError, KNOWN_PAGES, PagesEndpoints } from "../../_api/pagesEndpoints";
 
@@ -46,16 +48,19 @@ export default function PageEditView({ slug }: { slug: string }) {
 
 function PageForm({ slug, page }: { slug: string; page: StaticPage | null }) {
 	const queryClient = useQueryClient();
-	const [title, setTitle] = useState(page?.title ?? KNOWN_PAGES.find((p) => p.slug === slug)?.title ?? "");
-	const [content, setContent] = useState(page?.content ?? "<h2></h2>\n<p></p>");
-	const [seo, setSeo] = useState(page?.seo ?? {});
+	// what the form opened with — saving refetches the page and remounts the form (`key={updatedAt}`)
+	const [base] = useState(() => ({ title: page?.title ?? KNOWN_PAGES.find((p) => p.slug === slug)?.title ?? "", content: page?.content ?? "<h2></h2>\n<p></p>", seo: page?.seo ?? {} }));
+	const [title, setTitle] = useState(base.title);
+	const [content, setContent] = useState(base.content);
+	const [seo, setSeo] = useState(base.seo);
+	const dirty = JSON.stringify({ title, content, seo }) !== JSON.stringify(base);
 	const [touched, setTouched] = useState(false);
 
 	const save = useMutation({
 		mutationFn: () => withMappedError(() => PagesEndpoints.save(slug, { title: title.trim(), content, seo })),
 		meta: { showNotification: true },
 		onSuccess: () => {
-			toast(page ? "صفحه ذخیره شد" : "صفحه ساخته شد", { icon: "check" });
+			toast(`${page ? "صفحه ذخیره شد" : "صفحه ساخته شد"} — ${onSiteWithin(STORE_REFRESH_MINUTES.pages)}`, { icon: "check" });
 			queryClient.invalidateQueries({ queryKey: ["pages", "detail", slug] });
 		},
 	});
@@ -94,10 +99,8 @@ function PageForm({ slug, page }: { slug: string; page: StaticPage | null }) {
 					</h3>
 					<div className="stack" style={{ marginTop: 14 }}>
 						<Input label="عنوان" value={title} onChange={(e) => setTitle(e.target.value)} error={(touched && local.title) || server.title} />
-						<Textarea
+						<HtmlField
 							label="محتوا (HTML)"
-							labelNote="p، h2، h3، ul، ol، li، a، b، strong، em، mark، blockquote"
-							className="code"
 							value={content}
 							onChange={(e) => setContent(e.target.value)}
 							error={(touched && local.content) || server.content}
@@ -111,8 +114,9 @@ function PageForm({ slug, page }: { slug: string; page: StaticPage | null }) {
 					</h3>
 					<SeoFields value={seo} onChange={setSeo} errors={server} titlePlaceholder={title ? `${title} | کیوا` : undefined} />
 				</section>
+				<UnsavedGuard dirty={dirty && !save.isSuccess} />
 				<div className="savebar">
-					<span className="msg">سایت صفحه‌های ثابت را هر ۱۰ دقیقه تازه می‌کند (ISR).</span>
+					<span className="msg">سایت صفحه‌های ثابت را هر {toPersianDigits(STORE_REFRESH_MINUTES.pages)} دقیقه تازه می‌کند (ISR).</span>
 					<Button type="submit" size="sm" isLoading={save.isPending}>
 						{page ? "ذخیره" : "ساخت صفحه"}
 					</Button>

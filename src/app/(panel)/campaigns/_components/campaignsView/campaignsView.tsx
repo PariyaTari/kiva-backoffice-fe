@@ -18,10 +18,12 @@ import Button from "@/app/_components/ui/button/button";
 import Input from "@/app/_components/ui/input/input";
 import Modal from "@/app/_components/ui/modal/modal";
 import Switch from "@/app/_components/ui/switch/switch";
+import { STORE_REFRESH_MINUTES } from "@/config/global";
 import { toast } from "@/store/notification.store";
 import { Campaign, CampaignUpsertRequest } from "@/types/marketing.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
+import { onSiteWithin } from "@/utils/format";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
 import { PERIOD_LABEL, PERIOD_TONE, periodState, periodText } from "@/utils/period";
 import { withMappedError } from "@/utils/withMappedError";
@@ -149,7 +151,7 @@ function CampaignForm({ campaign, onClose }: { campaign: Campaign | null; onClos
 		mutationFn: () => withMappedError(() => (campaign ? CampaignsEndpoints.update(campaign.id, v) : CampaignsEndpoints.create(v))),
 		meta: { showNotification: true },
 		onSuccess: (c) => {
-			toast(`کمپین «${c.title}» ذخیره شد`, { icon: "check" });
+			toast(`کمپین «${c.title}» ذخیره شد — ${onSiteWithin(STORE_REFRESH_MINUTES.home)}`, { icon: "check" });
 			queryClient.invalidateQueries({ queryKey: ["campaigns"] });
 			onClose();
 		},

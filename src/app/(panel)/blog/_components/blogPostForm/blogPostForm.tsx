@@ -8,16 +8,18 @@ import JalaliDateTimeInput from "@/app/_components/panel/jalaliDateTimeInput/jal
 import NumberInput from "@/app/_components/panel/numberInput/numberInput";
 import SeoFields from "@/app/_components/panel/seoFields/seoFields";
 import SingleMediaField, { PickedMedia } from "@/app/_components/panel/singleMediaField/singleMediaField";
+import UnsavedGuard from "@/app/_components/panel/unsavedGuard/unsavedGuard";
 import Button from "@/app/_components/ui/button/button";
 import Input from "@/app/_components/ui/input/input";
 import Select from "@/app/_components/ui/select/select";
 import Switch from "@/app/_components/ui/switch/switch";
 import Textarea from "@/app/_components/ui/textarea/textarea";
-import { STORE_URL } from "@/config/global";
+import { STORE_REFRESH_MINUTES, STORE_URL } from "@/config/global";
 import { toast } from "@/store/notification.store";
 import { SeoMeta } from "@/types/common.type";
 import { BlogPostDetail, BlogPostUpsertRequest, BlogStatus } from "@/types/content.type";
 import { toPersianDigits } from "@/utils/digits";
+import { onSiteWithin } from "@/utils/format";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
 import { BLOG_STATUS, optionsOf } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
@@ -43,6 +45,8 @@ type Values = {
 	publishedAt: string | null;
 	seo: SeoMeta;
 };
+
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 const toValues = (p: BlogPostDetail | null): Values => ({
 	title: p?.title ?? "",
@@ -113,6 +117,9 @@ type BlogPostFormProps = {
 export default function BlogPostForm({ post, authors, categories, onCreated, onDelete }: BlogPostFormProps) {
 	const queryClient = useQueryClient();
 	const [values, setValues] = useState<Values>(() => toValues(post));
+	// what the form opened with — saving refetches the post and the page remounts the form (`key={updatedAt}`)
+	const [base] = useState(values);
+	const dirty = !same(values, base);
 	const [touched, setTouched] = useState(false);
 	const set = <K extends keyof Values>(key: K, value: Values[K]) => setValues((v) => ({ ...v, [key]: value }));
 
@@ -120,7 +127,7 @@ export default function BlogPostForm({ post, authors, categories, onCreated, onD
 		mutationFn: () => withMappedError(() => (post ? BlogEndpoints.update(post.id, toPayload(values)) : BlogEndpoints.create(toPayload(values)))),
 		meta: { showNotification: true },
 		onSuccess: (saved) => {
-			toast(post ? "مقاله ذخیره شد" : "مقاله ساخته شد", { icon: "check" });
+			toast(`${post ? "مقاله ذخیره شد" : "مقاله ساخته شد"} — ${onSiteWithin(STORE_REFRESH_MINUTES.blog)}`, { icon: "check" });
 			queryClient.invalidateQueries({ queryKey: ["blog"] });
 			if (!post) onCreated?.(saved);
 		},
@@ -249,6 +256,7 @@ export default function BlogPostForm({ post, authors, categories, onCreated, onD
 					</div>
 				</section>
 			</aside>
+			<UnsavedGuard dirty={dirty && !save.isSuccess} />
 		</form>
 	);
 }

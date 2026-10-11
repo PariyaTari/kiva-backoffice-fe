@@ -1,5 +1,6 @@
 import { httpClient } from "@/httpClient/HttpClient";
 import { OrderCode } from "@/types/common.type";
+import { StoreProduct, StoreProductDetail } from "@/types/marketing.type";
 import {
 	AdminNote,
 	AdminOrder,
@@ -14,13 +15,16 @@ import {
 	ShipmentPayload,
 } from "@/types/order.type";
 
+/** The storefront's change-request modal shows this many «محصولات مشابه» (kiva-fe `changeRequestModal`). */
+const RELATED_LIMIT = 8;
+
 const orderUrl = (code: OrderCode, rest = "") => `admin/orders/${encodeURIComponent(code)}${rest}`;
 
 /** `/admin/orders*` (ADMIN, OPERATOR; refunds ADMIN only) — pure request functions, no React Query concepts. */
 export const OrdersEndpoints = {
 	/** The queue, with per-status counters for the tabs (`statusCounts`). */
-	getOrders: async (filters: AdminOrderFilters, page: number, size: number) => {
-		const res = await httpClient.call<AdminOrderListResponse>({ method: "GET", url: "admin/orders", params: { ...filters, page, size } });
+	getOrders: async (filters: AdminOrderFilters, page: number, size: number, signal?: AbortSignal) => {
+		const res = await httpClient.call<AdminOrderListResponse>({ method: "GET", url: "admin/orders", params: { ...filters, page, size }, signal });
 		return res.data;
 	},
 
@@ -61,6 +65,21 @@ export const OrdersEndpoints = {
 	/** ADMIN only — full or partial, optionally tied to a return. */
 	createRefund: async (code: OrderCode, payload: RefundPayload) => {
 		const res = await httpClient.call<Refund>({ method: "POST", url: orderUrl(code, "/refunds"), data: payload });
+		return res.data;
+	},
+
+	/**
+	 * A change request's «رنگ دیگه» — the storefront product page (`GET /products/{id}`): readable by every role,
+	 * published products only, the variants with colour and stock.
+	 */
+	getStoreProduct: async (productId: number) => {
+		const res = await httpClient.call<StoreProductDetail>({ method: "GET", url: `products/${productId}` });
+		return res.data;
+	},
+
+	/** A change request's «مدل دیگه» — the shopper picks it from «محصولات مشابه» (`GET /products/{id}/related`), so it is looked up there. */
+	getRelatedProducts: async (productId: number) => {
+		const res = await httpClient.call<StoreProduct[]>({ method: "GET", url: `products/${productId}/related`, params: { limit: RELATED_LIMIT } });
 		return res.data;
 	},
 };

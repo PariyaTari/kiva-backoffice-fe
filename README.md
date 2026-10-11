@@ -54,6 +54,7 @@ NEXT_PUBLIC_STORE_URL="http://localhost:3100"   # لینک‌های «مشاهد
 - کد OTP: هر ۵ رقم؛ `00000` اشتباه، `11111` منقضی؛ هر شماره هر ۱۲۰ ثانیه یک کد؛ `09999999999` همیشه `RATE_LIMITED`.
 - نام کوکی mock پیش‌فرض `kiva_bo_rt` است (`MOCK_COOKIE`) تا با mock فروشگاه روی localhost قاطی نشود. فرانت اسم کوکی را نمی‌داند.
 - `POST /api/v1/__mock/expire-access-tokens` همه‌ی access tokenها را منقضی می‌کند (تست تمدید).
+- `POST /api/v1/__mock/new-order` یک سفارش تازه‌ی «در حال آماده‌سازی» بالای صف می‌گذارد (تست شمارنده‌های زنده و نوار «سفارش تازه رسید»).
 - ساختار: `server.mjs` (راه‌انداز)، `lib.mjs`، `db.mjs` (کاربرها)، `auth.mjs`، `media.mjs`، `catalog.mjs` (داده‌ی کاتالوگ)، `admin/<بخش>.mjs` (سفارش، کاتالوگ، بازاریابی، محتوا، پشتیبانی، تنظیمات).
 
 ## بخش‌ها
@@ -61,7 +62,7 @@ NEXT_PUBLIC_STORE_URL="http://localhost:3100"   # لینک‌های «مشاهد
 | مسیر | بخش | نقش |
 |---|---|---|
 | `/` | داشبورد: صف‌های کاری هر نقش + گزارش فروش (ADMIN) | همه |
-| `/orders`، `/orders/[code]` | صف سفارش؛ عکس قبل از ارسال، ارسال، وضعیت، یادداشت، استرداد | ADMIN، OPERATOR (استرداد فقط ADMIN) |
+| `/orders`، `/orders/[code]` | صف سفارش (انتخاب چندتایی ← چاپ گروهی برگه‌ی ارسال، خروجی CSV با همان فیلترها)؛ عکس قبل از ارسال (و ورینت جایگزین درخواست تغییر با نام/رنگ/موجودی)، ارسال، وضعیت، یادداشت، چاپ برگه‌ی ارسال، استرداد | ADMIN، OPERATOR (استرداد فقط ADMIN) |
 | `/returns` | مرجوعی‌ها و تصمیم | ADMIN، OPERATOR |
 | `/products`، `/products/new`، `/products/[id]` | محصول، رنگ‌ها و گالری، انتشار، موجودی | ADMIN، CATALOG_MANAGER |
 | `/inventory`، `/categories`، `/colors`، `/materials` | انبار و طبقه‌بندی | ADMIN، CATALOG_MANAGER |
@@ -70,6 +71,8 @@ NEXT_PUBLIC_STORE_URL="http://localhost:3100"   # لینک‌های «مشاهد
 | `/blog`، `/faq`، `/pages` | محتوا | ADMIN، CONTENT_EDITOR |
 | `/reviews`، `/contact-messages`، `/customers` | پشتیبانی (نقش‌دادن فقط ADMIN) | ADMIN، SUPPORT |
 | `/settings` | تنظیمات فروشگاه | ADMIN |
+
+**در همه‌ی صفحه‌ها:** جستجوی سریع (`Ctrl+K` یا `/`) روی سفارش، محصول و مشتری — فقط بخش‌هایی که نقشت دارد؛ شمارنده‌های صف در سایدبار و داشبورد هر دقیقه (وقتی تب دیده می‌شود) تازه می‌شوند و `/orders` با رسیدن سفارش تازه نوار «به‌روزرسانی لیست» نشان می‌دهد.
 
 منو و دکمه‌ها از `roles` کاربر ساخته می‌شوند ولی **فقط برای نمایش**اند؛ تصمیم با سرور است و `403` بلوک «به این بخش دسترسی نداری» نشان می‌دهد، بدون بیرون کردن.
 
@@ -80,15 +83,17 @@ src/
 ├── app/
 │   ├── layout.tsx، queryProvider.tsx، sessionProvider.tsx
 │   ├── (auth)/login            — ورود OTP (شماره ← کد)
-│   ├── (panel)/layout.tsx      — پوسته (سایدبار نقش‌محور + شمارنده‌ی صف‌ها) و گارد ورود
+│   ├── (panel)/layout.tsx      — پوسته (سایدبار نقش‌محور + شمارنده‌ی زنده‌ی صف‌ها، جستجوی سریع) و گارد ورود
 │   ├── (panel)/_api            — panelEndpoints (me، logout، آپلود مدیا)، taxonomy، reports
 │   ├── (panel)/<section>/      — page.tsx، _api/<x>Endpoints.ts، _components/<name>/<name>.tsx، _utils/apiError.ts
-│   └── _components/            — ui و common (از فروشگاه) + panel (DataTable، Pager، SearchInput، MediaUploader، ProductPicker، …)
+│   └── _components/            — ui و common (از فروشگاه) + panel (DataTable، Pager، SearchInput، MediaUploader، ProductPicker، HtmlField، UnsavedGuard، …)
 ├── config/  httpClient/  hooks/ (useTableState، useUrlFilters، useCan)  store/  types/  utils/ (labels، roles، period، …)
-└── tailwind/kiva/*.css (دیزاین‌سیستم) + components.css + admin/*.css (پوسته، جدول، فرم، بلوک‌ها)
+└── tailwind/kiva/*.css (دیزاین‌سیستم) + components.css + admin/*.css (پوسته، جدول، فرم، بلوک‌ها، چاپ)
 ```
 
 **قراردادها** همان `kiva-fe`: `useQuery`/`useMutation` مستقیم در کامپوننت با `withMappedError`، کلیدهای سلسله‌مراتبی، بدون کش و retry، خطای کوئری با `toErrorView` + `ErrorComponent2`، خطای میوتیشن با toast یا پیام زیر فیلد (`fieldErrorsOf`). فیلترهای لیست در URL (`useUrlFilters`)، صفحه‌بندی با `useTableState`. فرم‌های داخل مودال کامپوننت جدا هستند تا با بسته شدن از نو شروع شوند.
+
+**فرم‌های بلند** (محصول، مقاله، صفحه، تنظیمات، FAQ، اطلاعیه): متن HTML با `HtmlField` (سوییچ «کد / پیش‌نمایش» به سبک `.prose` فروشگاه و فهرست تگ‌هایی که سرور حذف می‌کند — `HTML_TAGS` در `utils/html.ts`)، و `<UnsavedGuard dirty />` که با تغییرات ذخیره‌نشده جلوی بستن تب و کلیک روی لینک‌های پنل را می‌گیرد (دکمه‌ی back مرورگر را نه).
 
 ## شکاف‌های کانترکت که در UI گفته شده
 

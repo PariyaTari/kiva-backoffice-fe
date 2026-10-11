@@ -96,3 +96,8 @@
 .seg{display:flex;gap:4px;background:#fff;border:1px solid var(--line);padding:4px;border-radius:var(--pill)}
 .seg button{height:34px;padding:0 16px;border-radius:var(--pill);border:0;background:none;font-weight:600;font-size:13px;cursor:pointer;color:var(--ink-70)}
 .seg button.on{background:var(--ink);color:#fff}
+
+/* «سفارش تازه رسید» on the orders queue */
+.note.new-orders{align-items:center;margin-bottom:12px}
+.note.new-orders svg{margin-top:0}
+.note.new-orders .btn{margin-inline-start:auto}

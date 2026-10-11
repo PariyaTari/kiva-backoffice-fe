@@ -36,6 +36,9 @@ export function formatDateTime(value: string | number | Date | null | undefined)
 }
 
 /** `۱٬۸۹۰٬۰۰۰ تومان`. */
+/** «تا ۵ دقیقه‌ی دیگر در سایت» — the save toast's note for content the storefront caches (`STORE_REFRESH_MINUTES`). */
+export const onSiteWithin = (minutes: number) => `تا ${toPersianDigits(minutes)} دقیقه‌ی دیگر در سایت`;
+
 export const formatToman = (value: number | null | undefined) => (value == null ? "—" : `${formatPrice(value)} تومان`);
 
 /** «۳ ساعت پیش» / «۲ روز دیگر» — for deadlines and queue ages. */

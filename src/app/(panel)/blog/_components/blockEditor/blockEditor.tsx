@@ -1,6 +1,7 @@
 "use client";
 
 import { Icon } from "@/app/_components/icon/icons";
+import HtmlField from "@/app/_components/panel/htmlField/htmlField";
 import ProductPicker from "@/app/_components/panel/productPicker/productPicker";
 import SingleMediaField from "@/app/_components/panel/singleMediaField/singleMediaField";
 import Input from "@/app/_components/ui/input/input";
@@ -58,13 +59,13 @@ export default function BlockEditor({ blocks, onChange, errors }: BlockEditorPro
 
 					{b.type === "HEADING" && <Input aria-label="تیتر" value={b.text ?? ""} onChange={(e) => patch(i, { text: e.target.value })} placeholder="تیتر بخش (در فهرست مطالب هم می‌آید)" error={err(i, "text")} />}
 					{b.type === "PARAGRAPH" && (
-						<Textarea aria-label="پاراگراف" className="code" value={b.html ?? ""} onChange={(e) => patch(i, { html: e.target.value })} placeholder="<p>…</p>" error={err(i, "html")} style={{ minHeight: 110 }} />
+						<HtmlField aria-label="پاراگراف" value={b.html ?? ""} onChange={(e) => patch(i, { html: e.target.value })} placeholder="<p>…</p>" error={err(i, "html")} style={{ minHeight: 110 }} />
 					)}
 					{b.type === "QUOTE" && <Textarea aria-label="نقل‌قول" value={b.text ?? ""} onChange={(e) => patch(i, { text: e.target.value })} error={err(i, "text")} style={{ minHeight: 70 }} />}
 					{b.type === "TIP" && (
 						<>
 							<Input aria-label="عنوان نکته" value={b.title ?? ""} onChange={(e) => patch(i, { title: e.target.value })} />
-							<Textarea aria-label="متن نکته" className="code" value={b.html ?? ""} onChange={(e) => patch(i, { html: e.target.value })} error={err(i, "html")} style={{ minHeight: 80 }} />
+							<HtmlField aria-label="متن نکته" value={b.html ?? ""} onChange={(e) => patch(i, { html: e.target.value })} error={err(i, "html")} style={{ minHeight: 80 }} />
 						</>
 					)}
 					{b.type === "PRODUCT" && <ProductPicker single value={b.productId ? [b.productId] : []} onChange={(ids) => patch(i, { productId: ids[0] ?? null })} error={err(i, "productId")} />}

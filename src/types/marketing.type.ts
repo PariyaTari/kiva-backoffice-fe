@@ -1,4 +1,5 @@
 /** Marketing as the panel edits it (kiva-openapi.yml 1.4.0 · Admin · Marketing, Content). */
+import { StockStatus } from "./catalog.type";
 import { ColorKey, IconName, MediaAsset, Money, SocialChannel } from "./common.type";
 import { Color } from "./order.type";
 import { PageMeta } from "./pageinate";
@@ -44,8 +45,20 @@ export type StoreProduct = {
 	name: string;
 	image: MediaAsset | null;
 	price: { price: Money; compareAtPrice: Money | null; discountPercent?: number };
-	colors?: { variantId: number; color: Color }[];
+	colors?: { variantId: number; color: Color; stockStatus?: StockStatus }[];
 };
+
+/** The storefront's `ProductVariant` — only what the panel reads. */
+export type StoreVariant = {
+	id: number;
+	sku: string;
+	color: Color;
+	price: { price: Money; compareAtPrice: Money | null };
+	stock: { status: StockStatus; availableQuantity?: number | null; label?: string };
+};
+
+/** The storefront's `ProductDetail` (`GET /products/{idOrSlug}`, published products only) — only what the panel reads. */
+export type StoreProductDetail = StoreProduct & { variants: StoreVariant[] };
 
 export type Campaign = {
 	id: number;

@@ -5,6 +5,7 @@ import StatusTag from "@/app/_components/panel/statusTag/statusTag";
 import { AdminOrder, OrderMediaItem } from "@/types/order.type";
 import { formatDateTime, formatPhone, relativeTime } from "@/utils/format";
 import { CHANGE_TYPE, labelOf, MEDIA_STATUS, MEDIA_STATUS_TONE, MEDIA_VIEW } from "@/utils/labels";
+import DesiredVariant from "../desiredVariant/desiredVariant";
 
 /** Statuses in which photos can still be (re)attached and sent (FEATURES §3.2 steps 2–4). */
 export const MEDIA_EDITABLE = ["PROCESSING", "RESERVED", "PHOTO_SENT", "CHANGE_REQUESTED"];
@@ -95,7 +96,8 @@ export default function OrderMedia({ order, onEdit, onSend }: OrderMediaProps) {
 							{changedItem.name} ({changedItem.color.name})
 							{fb.desiredVariantId && (
 								<>
-									<Icon name="arrow" /> ورینت جایگزین <span className="ltr">#{fb.desiredVariantId}</span>
+									<Icon name="arrow" />
+									<DesiredVariant item={changedItem} variantId={fb.desiredVariantId} changeType={fb.changeType} />
 								</>
 							)}
 						</span>

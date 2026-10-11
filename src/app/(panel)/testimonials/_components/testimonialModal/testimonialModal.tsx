@@ -15,6 +15,7 @@ import Modal from "@/app/_components/ui/modal/modal";
 import Select from "@/app/_components/ui/select/select";
 import Switch from "@/app/_components/ui/switch/switch";
 import Textarea from "@/app/_components/ui/textarea/textarea";
+import { STORE_REFRESH_MINUTES } from "@/config/global";
 import { toast } from "@/store/notification.store";
 import { SocialChannel } from "@/types/common.type";
 import { Testimonial, TestimonialUpsertRequest } from "@/types/marketing.type";
@@ -22,6 +23,7 @@ import { toPersianDigits } from "@/utils/digits";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
 import { optionsOf, SOCIAL_CHANNEL } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
+import { onSiteWithin } from "@/utils/format";
 import { TestimonialsEndpoints } from "../../_api/testimonialsEndpoints";
 
 /** The screenshot the testimonial already has — kept unless replaced or removed (the response has its URL, not its id). */
@@ -79,7 +81,7 @@ function TestimonialForm({ testimonial: t, onClose }: Omit<TestimonialModalProps
 		mutationFn: () => withMappedError(() => (t ? TestimonialsEndpoints.update(t.id, payload()) : TestimonialsEndpoints.create(payload()))),
 		meta: { showNotification: true },
 		onSuccess: () => {
-			toast(published ? "پیام رضایت ذخیره شد" : "پیام رضایت ذخیره شد (منتشرنشده — در فهرست دیده نمی‌شود)", { icon: "check" });
+			toast(published ? `پیام رضایت ذخیره شد — ${onSiteWithin(STORE_REFRESH_MINUTES.home)}` : "پیام رضایت ذخیره شد (منتشرنشده — در فهرست دیده نمی‌شود)", { icon: "check" });
 			queryClient.invalidateQueries({ queryKey: ["testimonials"] });
 			onClose();
 		},

@@ -5,10 +5,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TaxonomyEndpoints } from "@/app/(panel)/_api/taxonomyEndpoints";
 import { Icon } from "@/app/_components/icon/icons";
 import ChipsInput from "@/app/_components/panel/chipsInput/chipsInput";
+import HtmlField from "@/app/_components/panel/htmlField/htmlField";
 import JalaliDateTimeInput from "@/app/_components/panel/jalaliDateTimeInput/jalaliDateTimeInput";
 import MoneyInput from "@/app/_components/panel/moneyInput/moneyInput";
 import NumberInput from "@/app/_components/panel/numberInput/numberInput";
 import SeoFields from "@/app/_components/panel/seoFields/seoFields";
+import UnsavedGuard from "@/app/_components/panel/unsavedGuard/unsavedGuard";
 import Button from "@/app/_components/ui/button/button";
 import Input from "@/app/_components/ui/input/input";
 import Select from "@/app/_components/ui/select/select";
@@ -193,10 +195,9 @@ export default function ProductForm({ product, onCreated }: ProductFormProps) {
 						footer={<small className="muted">{toPersianDigits(values.shortDescription.length)} / ۳۰۰</small>}
 						style={{ minHeight: 70 }}
 					/>
-					<Textarea
+					<HtmlField
 						label="توضیحات (HTML)"
-						labelNote="تب «توضیحات»؛ تگ‌های p، b، strong، em، a، ul، ol، li، br، mark، h2، h3، blockquote"
-						className="code"
+						labelNote="تب «توضیحات»"
 						value={values.description}
 						onChange={(e) => set("description", e.target.value)}
 						style={{ minHeight: 160 }}
@@ -286,6 +287,7 @@ export default function ProductForm({ product, onCreated }: ProductFormProps) {
 				<SeoFields value={values.seo} onChange={(v) => set("seo", v)} errors={{ ...server, ...(touched ? local : {}) }} titlePlaceholder={values.name ? `${values.name} | کیوا` : undefined} />
 			</section>
 
+			<UnsavedGuard dirty={dirty} />
 			<div className="savebar">
 				<span className="msg">
 					{stale ? (

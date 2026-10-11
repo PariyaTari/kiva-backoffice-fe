@@ -6,7 +6,7 @@
 import { DAY, HOUR, checker, fail, iso, listParam, normQ, notFound, paginate, route, SLUG } from "../lib.mjs";
 import { staff } from "../auth.mjs";
 import { assets } from "../media.mjs";
-import { bagImage, categoryById, colorByKey, colorView, productById, products, variantImage } from "../catalog.mjs";
+import { available, bagImage, categoryById, colorByKey, colorView, productById, products, stockStatusOf, variantCompareAt, variantImage, variantPrice } from "../catalog.mjs";
 import * as D from "../data.mjs";
 
 const NOW = Date.now();
@@ -24,7 +24,7 @@ const summary = (p) => {
 	return {
 		id: p.id, slug: p.slug, sku: p.sku, name: p.name, url: `/product/${p.slug}`, category: categoryById(p.categoryId) ? { id: p.categoryId, slug: categoryById(p.categoryId).slug, name: categoryById(p.categoryId).name } : null,
 		bagType: p.bagType, price: { price: p.price, compareAtPrice: p.compareAtPrice, discountPercent: p.compareAtPrice ? Math.round((1 - p.price / p.compareAtPrice) * 100) : 0, currency: "IRT" },
-		colors: p.variants.filter((v) => v.isActive).map((v) => ({ variantId: v.id, color: colorView(v.colorKey), stockStatus: "IN_STOCK", imageUrl: variantImage(p, v), thumbnailUrl: variantImage(p, v) })),
+		colors: p.variants.filter((v) => v.isActive).map((v) => ({ variantId: v.id, color: colorView(v.colorKey), stockStatus: stockStatusOf(available(v)), imageUrl: variantImage(p, v), thumbnailUrl: variantImage(p, v) })),
 		defaultColorKey: def?.colorKey ?? null, image: url ? { id: `img_${p.id}`, type: "IMAGE", url, thumbnailUrl: url, alt: p.name } : null,
 	};
 };
@@ -37,6 +37,39 @@ route("GET", "/products", (ctx) => {
 	if (q.onSale === "true") list = list.filter((p) => p.compareAtPrice);
 	const { items, meta } = paginate(list, q, 24);
 	return { items: items.map(summary), meta, title: "فروشگاه کیوا", subtitle: null, breadcrumbs: [], appliedFilters: [], sort: "newest", facets: null };
+});
+
+// The storefront's product page (only what the panel reads: variants with colour, price and stock) — published only.
+const STOCK_LABEL = { IN_STOCK: "موجود", LOW_STOCK: (n) => `فقط ${n.toLocaleString("fa-IR")} عدد در انبار باقی مونده`, OUT_OF_STOCK: "ناموجود" };
+const publicProduct = (idOrSlug) => {
+	const p = /^\d+$/.test(idOrSlug) ? productById(idOrSlug) : products.find((x) => x.slug === idOrSlug || x.sku === idOrSlug);
+	if (!p || p.status !== "ACTIVE") notFound("PRODUCT_NOT_FOUND", "محصول پیدا نشد.");
+	return p;
+};
+route("GET", "/products/:idOrSlug", (ctx) => {
+	const p = publicProduct(ctx.params.idOrSlug);
+	const variants = p.variants
+		.filter((v) => v.isActive)
+		.map((v) => {
+			const n = available(v);
+			const status = stockStatusOf(n);
+			return {
+				id: v.id, sku: v.sku, color: colorView(v.colorKey), isDefault: v.isDefault,
+				price: { price: variantPrice(p, v), compareAtPrice: variantCompareAt(p, v), currency: "IRT" },
+				stock: { status, availableQuantity: status === "LOW_STOCK" ? n : null, maxOrderQuantity: Math.min(n, p.maxPerOrder), label: status === "LOW_STOCK" ? STOCK_LABEL.LOW_STOCK(n) : STOCK_LABEL[status] },
+				media: [{ id: `img_${v.id}`, type: "IMAGE", url: variantImage(p, v), thumbnailUrl: variantImage(p, v), alt: p.name }], hasVideo: false,
+			};
+		});
+	return { ...summary(p), shortDescription: p.shortDescription, description: p.description, highlights: p.highlights, variants, specTable: [], breadcrumbs: [], ratingSummary: { average: p.rating.average, count: p.rating.count } };
+});
+// «محصولات مشابه» — same category first, then best sellers (the storefront's change-request «مدل دیگه» picks from these).
+route("GET", "/products/:id/related", (ctx) => {
+	const p = publicProduct(ctx.params.id);
+	const limit = Math.min(24, Math.max(1, Number(ctx.query.limit) || 8));
+	const others = products.filter((x) => x.status === "ACTIVE" && x.id !== p.id);
+	const same = others.filter((x) => x.categoryId === p.categoryId);
+	const rest = others.filter((x) => x.categoryId !== p.categoryId).sort((a, b) => b.soldCount - a.soldCount);
+	return [...same, ...rest].slice(0, limit).map(summary);
 });
 
 // ───────────── discount codes ─────────────

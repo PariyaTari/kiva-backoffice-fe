@@ -9,6 +9,7 @@ import { Icon } from "@/app/_components/icon/icons";
 import IconSelect from "@/app/_components/panel/iconSelect/iconSelect";
 import JalaliDateTimeInput from "@/app/_components/panel/jalaliDateTimeInput/jalaliDateTimeInput";
 import PageHead from "@/app/_components/panel/pageHead/pageHead";
+import UnsavedGuard from "@/app/_components/panel/unsavedGuard/unsavedGuard";
 import Button from "@/app/_components/ui/button/button";
 import Input from "@/app/_components/ui/input/input";
 import { toast } from "@/store/notification.store";
@@ -116,6 +117,7 @@ export default function AnnouncementsView() {
 							<Icon name="plus" /> افزودن پیام
 						</button>
 					</div>
+					<UnsavedGuard dirty={dirty} />
 					<div className="savebar">
 						<span className="msg">{dirty ? "تغییرات ذخیره‌نشده داری." : "همه‌چیز ذخیره است."}</span>
 						{dirty && (

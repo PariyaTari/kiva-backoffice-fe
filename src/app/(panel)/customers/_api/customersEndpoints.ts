@@ -5,8 +5,8 @@ import { UserRole } from "@/types/user.type";
 /** `/admin/customers*` — search (ADMIN, SUPPORT) and panel roles (ADMIN only). */
 export const CustomersEndpoints = {
 	/** `q` = mobile or name. */
-	getCustomers: async (q: string, page: number, size: number) => {
-		const res = await httpClient.call<CustomerList>({ method: "GET", url: "admin/customers", params: { q: q || undefined, page, size } });
+	getCustomers: async (q: string, page: number, size: number, signal?: AbortSignal) => {
+		const res = await httpClient.call<CustomerList>({ method: "GET", url: "admin/customers", params: { q: q || undefined, page, size }, signal });
 		return res.data;
 	},
 

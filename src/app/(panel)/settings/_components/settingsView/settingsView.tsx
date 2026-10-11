@@ -10,6 +10,7 @@ import { MessengerIcon } from "@/app/_components/icon/messengerIcon";
 import MoneyInput from "@/app/_components/panel/moneyInput/moneyInput";
 import NumberInput from "@/app/_components/panel/numberInput/numberInput";
 import PageHead from "@/app/_components/panel/pageHead/pageHead";
+import UnsavedGuard from "@/app/_components/panel/unsavedGuard/unsavedGuard";
 import Button from "@/app/_components/ui/button/button";
 import Checkbox from "@/app/_components/ui/checkbox/checkbox";
 import Input from "@/app/_components/ui/input/input";
@@ -231,6 +232,7 @@ export default function SettingsView() {
 				</div>
 			</section>
 
+			<UnsavedGuard dirty={dirty} />
 			<div className="savebar">
 				<span className="msg">{dirty ? "تغییرات ذخیره‌نشده داری." : "همه‌چیز ذخیره است."}</span>
 				{dirty && (

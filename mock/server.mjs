@@ -7,7 +7,7 @@
  * Env: MOCK_PORT (8090) · MOCK_DELAY (ms, 180) · MOCK_COOKIE (session cookie name, `kiva_bo_rt`)
  * Sign-in: staff numbers 09120000001 (ADMIN) … 09120000005 (SUPPORT) — docs/PLAN.md; any other number is a shopper.
  * OTP: any 5 digits; 00000 wrong, 11111 expired; one send per number every 120 s; 09999999999 always RATE_LIMITED.
- * Test aid: POST /api/v1/__mock/expire-access-tokens.
+ * Test aids: POST /api/v1/__mock/expire-access-tokens · POST /api/v1/__mock/new-order (a just-paid order on top).
  */
 import http from "node:http";
 import { randomUUID } from "node:crypto";

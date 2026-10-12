@@ -14,7 +14,7 @@ import Select from "@/app/_components/ui/select/select";
 import Switch from "@/app/_components/ui/switch/switch";
 import Textarea from "@/app/_components/ui/textarea/textarea";
 import { toast } from "@/store/notification.store";
-import { BagType, Category, CategoryUpsertRequest } from "@/types/catalog.type";
+import { AdminCategory, BagType, CategoryUpsertRequest } from "@/types/catalog.type";
 import { SeoMeta } from "@/types/common.type";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
 import { BAG_TYPE, optionsOf } from "@/utils/labels";
@@ -22,10 +22,7 @@ import { withMappedError } from "@/utils/withMappedError";
 import { CategoriesEndpoints } from "../../_api/categoriesEndpoints";
 
 const SLUG = /^(?=.*[a-z])[a-z0-9]+(-[a-z0-9]+)*$/;
-/** The image the category already has — kept unless replaced or removed (the response has its URL, not its media id). */
-const CURRENT = "__current";
-
-type CategoryModalProps = { category: Category | null; open: boolean; onClose: () => void; nextSortOrder: number };
+type CategoryModalProps = { category: AdminCategory | null; open: boolean; onClose: () => void; nextSortOrder: number };
 
 /** `CategoryUpsertRequest` — name, slug, menu icon (bag type + colour), image, order, menu visibility, SEO. */
 export default function CategoryModal({ category, open, onClose, nextSortOrder }: CategoryModalProps) {
@@ -43,7 +40,7 @@ function CategoryForm({ category, onClose, nextSortOrder }: Omit<CategoryModalPr
 	const [description, setDescription] = useState(category?.description ?? "");
 	const [bagType, setBagType] = useState<BagType>(category?.icon?.bagType ?? "HOBO");
 	const [colorKey, setColorKey] = useState(category?.icon?.colorKey ?? "lilac");
-	const [image, setImage] = useState<PickedMedia>(category?.imageUrl ? { id: CURRENT, url: category.imageUrl } : null);
+	const [image, setImage] = useState<PickedMedia>(category?.imageMediaId && category.imageUrl ? { id: category.imageMediaId, url: category.imageUrl } : null);
 	const [sortOrder, setSortOrder] = useState<number | null>(category?.sortOrder ?? nextSortOrder);
 	const [showInMenu, setShowInMenu] = useState(category?.showInMenu ?? true);
 	const [seo, setSeo] = useState<SeoMeta>(category?.seo ?? {});
@@ -61,7 +58,7 @@ function CategoryForm({ category, onClose, nextSortOrder }: Omit<CategoryModalPr
 		description: description.trim() || null,
 		iconBagType: bagType,
 		iconColorKey: colorKey,
-		...(image?.id === CURRENT ? {} : { imageMediaId: image?.id ?? null }),
+		imageMediaId: image?.id ?? null,
 		sortOrder: sortOrder ?? 0,
 		showInMenu,
 		seo,

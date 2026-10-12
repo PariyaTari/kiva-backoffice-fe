@@ -145,8 +145,8 @@ export const RETURN_STATUS = {
 	REQUESTED: "درخواست شده",
 	APPROVED: "تأیید شد",
 	REJECTED: "رد شد",
-	PICKUP_SCHEDULED: "زمان‌بندی ارسال",
-	RECEIVED: "دریافت شد",
+	PICKUP_SCHEDULED: "در حال جمع‌آوری",
+	RECEIVED: "رسیده به انبار",
 	REFUNDED: "وجه برگشت داده شد",
 	CLOSED: "بسته شد",
 } as const;

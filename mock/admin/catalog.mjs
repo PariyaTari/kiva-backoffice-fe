@@ -1,5 +1,5 @@
 /**
- * `/admin/products*`, `/admin/inventory/adjustments`, `/admin/categories*`, `/admin/colors*`, `/admin/materials`
+ * `/admin/products*`, `/admin/inventory/adjustments`, `/admin/stock-alerts`, `/admin/categories*`, `/admin/colors*`, `/admin/materials*`
  * (ADMIN, CATALOG_MANAGER) and the public reads the panel's forms use (`/categories`, `/colors`, `/materials`).
  * Products carry a version: `ETag` on reads, `If-Match` on `PUT` (a stale one → 412). Only a `PUT` of the product
  * document moves it — status, colours and stock are their own resources.
@@ -68,7 +68,7 @@ function listItem(p) {
 const categoryView = (c) => ({
 	id: c.id, slug: c.slug, name: c.name, description: c.description, icon: { bagType: c.iconBagType, colorKey: c.iconColorKey, imageUrl: null },
 	imageUrl: c.imageMediaId ? assets.get(c.imageMediaId)?.url ?? null : null, productCount: products.filter((p) => p.categoryId === c.id && p.status !== "ARCHIVED").length,
-	sortOrder: c.sortOrder, showInMenu: c.showInMenu, seo: c.seo,
+	sortOrder: c.sortOrder, showInMenu: c.showInMenu, seo: c.seo, imageMediaId: c.imageMediaId ?? null,
 });
 const materialView = (m) => ({ ...m, productCount: products.filter((p) => p.materialId === m.id).length });
 const colorFull = (c) => ({ ...colorView(c.key), productCount: products.filter((p) => p.variants.some((v) => v.colorKey === c.key)).length });
@@ -265,6 +265,50 @@ route("DELETE", "/admin/products/:id/variants/:vid", (ctx) => {
 	ctx.status = 204;
 });
 
+// ───────────── «موجود شد خبرم کن» ─────────────
+// one row per subscription (the storefront's POST /products/{id}/stock-alerts); a variant's `stockAlertSubscribers` counts its ACTIVE ones
+let ALERT_SEQ = 900;
+export const stockAlerts = [];
+products.forEach((p) =>
+	p.variants.forEach((v, k) => {
+		for (let i = 0; i < v.stockAlertSubscribers; i++) stockAlerts.push({ id: ++ALERT_SEQ, productId: p.id, variantId: v.id, status: "ACTIVE", createdAt: NOW - (i * 2 + k + 1) * 9 * HOUR });
+	}),
+);
+// «هر رنگی» — subscriptions to a whole product (no colour chosen)
+[products[2], products[6]].forEach((p, i) => {
+	for (let k = 0; k < 2 + i; k++) stockAlerts.push({ id: ++ALERT_SEQ, productId: p.id, variantId: null, status: "ACTIVE", createdAt: NOW - (k + 2) * DAY });
+});
+
+route("GET", "/admin/stock-alerts", (ctx) => {
+	staff(ctx, ...ROLES);
+	const q = ctx.query;
+	const groups = new Map();
+	for (const a of stockAlerts) {
+		if (a.status !== "ACTIVE") continue;
+		if (q.productId && a.productId !== Number(q.productId)) continue;
+		const key = `${a.productId}:${a.variantId ?? "*"}`;
+		const g = groups.get(key) || { productId: a.productId, variantId: a.variantId, waitingCount: 0, oldestAt: a.createdAt };
+		g.waitingCount += 1;
+		g.oldestAt = Math.min(g.oldestAt, a.createdAt);
+		groups.set(key, g);
+	}
+	let list = [...groups.values()].map((g) => {
+		const p = productById(g.productId);
+		const v = g.variantId ? p.variants.find((x) => x.id === g.variantId) : null;
+		const qty = v ? available(v) : p.variants.filter((x) => x.isActive).reduce((n, x) => n + available(x), 0);
+		const def = v || p.variants.find((x) => x.isDefault) || p.variants[0];
+		return {
+			product: { id: p.id, slug: p.slug, sku: p.sku, name: p.name, imageUrl: def ? variantImage(p, def) : null, colorKey: v?.colorKey ?? null },
+			variantId: g.variantId, color: v ? colorView(v.colorKey) : null, sku: v?.sku ?? null, waitingCount: g.waitingCount, oldestAt: iso(g.oldestAt),
+			stockStatus: stockStatusOf(qty, LOW), availableQuantity: qty,
+		};
+	});
+	if (q.inStock === "true") list = list.filter((x) => x.availableQuantity > 0);
+	if (q.inStock === "false") list = list.filter((x) => x.availableQuantity === 0);
+	list.sort((a, b) => b.waitingCount - a.waitingCount || a.oldestAt.localeCompare(b.oldestAt));
+	return paginate(list, q, 20);
+});
+
 // ───────────── inventory ─────────────
 const adjustments = [];
 products.slice(0, 10).forEach((p, i) =>
@@ -276,6 +320,25 @@ adjustments.push({ id: ++ADJ_SEQ, variantId: products[3].variants[0].id, sku: pr
 adjustments.sort((a, b) => b.createdAt - a.createdAt);
 const adjustmentView = (a) => ({ ...a, createdAt: iso(a.createdAt) });
 
+/**
+ * One stock change and its log row; a colour that was sold out and comes back sends «موجود شد» to its waiting list.
+ * Also used by a return's receipt (`RETURNED`, mock/admin/orders.mjs).
+ */
+export function adjustStock({ p, v }, delta, reason, note, by) {
+	const wasOut = available(v) === 0;
+	v.stockOnHand += delta;
+	if (wasOut && available(v) > 0) {
+		const waiting = stockAlerts.filter((x) => x.status === "ACTIVE" && (x.variantId === v.id || (x.variantId == null && x.productId === p.id)));
+		if (waiting.length) console.log(`  [sms] «موجود شد» → ${waiting.length} مشترک ${v.sku}`);
+		waiting.forEach((x) => (x.status = "NOTIFIED"));
+		v.stockAlertSubscribers = stockAlerts.filter((x) => x.status === "ACTIVE" && x.variantId === v.id).length;
+	}
+	p.updatedAt = Date.now();
+	const a = { id: ++ADJ_SEQ, variantId: v.id, sku: v.sku, delta, reason, note, stockAfter: v.stockOnHand, createdAt: Date.now(), createdBy: by };
+	adjustments.unshift(a);
+	return a;
+}
+
 route("POST", "/admin/inventory/adjustments", (ctx) => {
 	const me = staff(ctx, ...ROLES);
 	const { variantId, delta, reason, note = null } = ctx.body || {};
@@ -285,21 +348,9 @@ route("POST", "/admin/inventory/adjustments", (ctx) => {
 		.need(!note || String(note).length <= 300, "note", "یادداشت حداکثر ۳۰۰ حرف.")
 		.done();
 	const found = variantById(variantId) || notFound("VARIANT_NOT_FOUND", "این رنگ پیدا نشد.");
-	const { p, v } = found;
-	if (v.stockOnHand + delta < 0) fail(422, "QUANTITY_EXCEEDS_STOCK", `موجودی فیزیکی فقط ${v.stockOnHand.toLocaleString("fa-IR")} عدده.`, { meta: { stockOnHand: v.stockOnHand } });
-	const wasOut = available(v) === 0;
-	v.stockOnHand += delta;
-	let notified = 0;
-	if (wasOut && available(v) > 0 && v.stockAlertSubscribers) {
-		notified = v.stockAlertSubscribers;
-		v.stockAlertSubscribers = 0;
-		console.log(`  [sms] «موجود شد» → ${notified} مشترک ${v.sku}`);
-	}
-	p.updatedAt = Date.now();
-	const a = { id: ++ADJ_SEQ, variantId: v.id, sku: v.sku, delta, reason, note: note?.trim() || null, stockAfter: v.stockOnHand, createdAt: Date.now(), createdBy: fullNameOf(me) || me.phone };
-	adjustments.unshift(a);
+	if (found.v.stockOnHand + delta < 0) fail(422, "QUANTITY_EXCEEDS_STOCK", `موجودی فیزیکی فقط ${found.v.stockOnHand.toLocaleString("fa-IR")} عدده.`, { meta: { stockOnHand: found.v.stockOnHand } });
 	ctx.status = 201;
-	return adjustmentView(a);
+	return adjustmentView(adjustStock(found, delta, reason, note?.trim() || null, fullNameOf(me) || me.phone));
 });
 route("GET", "/admin/inventory/adjustments", (ctx) => {
 	staff(ctx, ...ROLES);
@@ -354,7 +405,7 @@ route("DELETE", "/admin/categories/:id", (ctx) => {
 	staff(ctx, ...ROLES);
 	const c = categoryById(ctx.params.id) || notFound("NOT_FOUND", "دسته‌بندی پیدا نشد.");
 	const count = products.filter((p) => p.categoryId === c.id).length;
-	if (count) fail(409, "CATEGORY_HAS_PRODUCTS", `این دسته ${count.toLocaleString("fa-IR")} محصول دارد؛ اول محصول‌ها را به دسته‌ی دیگری ببر.`, { meta: { productCount: count } });
+	if (count) fail(409, "IN_USE", `این دسته ${count.toLocaleString("fa-IR")} محصول دارد (با پیش‌نویس و آرشیو)؛ اول محصول‌ها را به دسته‌ی دیگری ببر.`, { meta: { productCount: count } });
 	categories.splice(categories.indexOf(c), 1);
 	ctx.status = 204;
 });
@@ -386,17 +437,50 @@ route("PUT", "/admin/colors/:key", (ctx) => {
 	Object.assign(c, { name: b.name.trim(), hex: b.hex.toUpperCase(), isLight: !!b.isLight, sortOrder: b.sortOrder ?? c.sortOrder });
 	return colorFull(c);
 });
-route("GET", "/materials", () => materials.map(materialView));
-route("POST", "/admin/materials", (ctx) => {
+route("DELETE", "/admin/colors/:key", (ctx) => {
 	staff(ctx, ...ROLES);
-	const b = ctx.body || {};
+	const c = colorByKey(ctx.params.key) || notFound("NOT_FOUND", "رنگ پیدا نشد.");
+	const count = products.filter((p) => p.variants.some((v) => v.colorKey === c.key)).length;
+	if (count) fail(409, "IN_USE", `${count.toLocaleString("fa-IR")} محصول این رنگ را دارند؛ برای کنار گذاشتنش ورینت‌هایش را غیرفعال کن.`, { meta: { productCount: count } });
+	colors.splice(colors.indexOf(c), 1);
+	ctx.status = 204;
+});
+route("GET", "/materials", () => materials.map(materialView));
+let MATERIAL_SEQ = Math.max(0, ...materials.map((m) => m.id));
+function checkMaterial(b, self = null) {
 	checker()
 		.need(nonEmpty(b.name), "name", "نام متریال لازمه.")
 		.need(SLUG.test(b.slug || ""), "slug", "slug فقط حروف کوچک لاتین، رقم و خط تیره؛ حداقل یک حرف.")
 		.need(FAMILIES.includes(b.family), "family", "خانواده‌ی متریال رو انتخاب کن.")
 		.done();
-	if (materials.some((m) => m.slug === b.slug)) fail(409, "DUPLICATE_SLUG", "این slug قبلاً ثبت شده.", { errors: [{ field: "slug", code: "DUPLICATE_SLUG", message: "این slug تکراریه." }] });
-	const m = { id: materials.length + 1, name: b.name.trim(), slug: b.slug, family: b.family, description: b.description ?? null, careInstructions: (b.careInstructions || []).map((x) => toEn(x).trim() && x.trim()).filter(Boolean) };
+	if (materials.some((m) => m.slug === b.slug && m !== self)) fail(409, "DUPLICATE_SLUG", "این slug قبلاً ثبت شده.", { errors: [{ field: "slug", code: "DUPLICATE_SLUG", message: "این slug تکراریه." }] });
+}
+const materialFields = (b) => ({ name: b.name.trim(), slug: b.slug, family: b.family, description: b.description?.trim() || null, careInstructions: (b.careInstructions || []).map((x) => String(x).trim()).filter(Boolean) });
+route("GET", "/admin/materials", (ctx) => {
+	staff(ctx, ...ROLES);
+	return materials.map(materialView);
+});
+route("PUT", "/admin/materials/:id", (ctx) => {
+	staff(ctx, ...ROLES);
+	const m = materialById(ctx.params.id) || notFound("NOT_FOUND", "متریال پیدا نشد.");
+	const b = ctx.body || {};
+	checkMaterial(b, m);
+	Object.assign(m, materialFields(b));
+	return materialView(m);
+});
+route("DELETE", "/admin/materials/:id", (ctx) => {
+	staff(ctx, ...ROLES);
+	const m = materialById(ctx.params.id) || notFound("NOT_FOUND", "متریال پیدا نشد.");
+	const count = products.filter((p) => p.materialId === m.id).length;
+	if (count) fail(409, "IN_USE", `${count.toLocaleString("fa-IR")} محصول از این متریال است (با پیش‌نویس و آرشیو).`, { meta: { productCount: count } });
+	materials.splice(materials.indexOf(m), 1);
+	ctx.status = 204;
+});
+route("POST", "/admin/materials", (ctx) => {
+	staff(ctx, ...ROLES);
+	const b = ctx.body || {};
+	checkMaterial(b);
+	const m = { id: ++MATERIAL_SEQ, ...materialFields(b) };
 	materials.push(m);
 	ctx.status = 201;
 	return materialView(m);

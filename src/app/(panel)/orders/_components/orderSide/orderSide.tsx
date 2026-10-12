@@ -7,7 +7,13 @@ import { formatDateTime, formatPhone, relativeTime } from "@/utils/format";
 import { RETURN_REASON, RETURN_STATUS, RETURN_STATUS_TONE, labelOf } from "@/utils/labels";
 
 /** The side column of an order: who, where, how it travels, its reservation group and its returns. */
-export default function OrderSide({ order }: { order: AdminOrder }) {
+type OrderSideProps = {
+	order: AdminOrder;
+	/** «ثبت استرداد» of a return that reached the warehouse — ADMIN only. */
+	onRefundReturn?: (returnId: number) => void;
+};
+
+export default function OrderSide({ order, onRefundReturn }: OrderSideProps) {
 	const c = order.customer;
 	const s = order.shipment;
 	const g = order.shipmentGroup;
@@ -89,15 +95,21 @@ export default function OrderSide({ order }: { order: AdminOrder }) {
 					</h3>
 					<div className="stack" style={{ gap: 10 }}>
 						{order.returns.map((r) => (
-							<Link key={r.id} href={`/returns?status=${r.status}`} style={{ display: "grid", gap: 2, fontSize: 13 }}>
-								<span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+							<div key={r.id} style={{ display: "grid", gap: 4, fontSize: 13 }}>
+								<Link href={`/returns?status=${r.status}`} style={{ display: "flex", gap: 8, alignItems: "center" }}>
 									<b className="ltr">{r.code}</b>
 									<StatusTag value={r.status} labels={RETURN_STATUS} tones={RETURN_STATUS_TONE} />
-								</span>
+								</Link>
 								<span className="muted">
 									{labelOf(RETURN_REASON, r.reason)} · {formatDateTime(r.createdAt)}
+									{r.closeReason && ` · ${r.closeReason}`}
 								</span>
-							</Link>
+								{onRefundReturn && r.allowedTransitions.includes("REFUNDED") && (
+									<button type="button" className="btn btn-outline btn-sm" style={{ justifySelf: "start" }} onClick={() => onRefundReturn(r.id)}>
+										ثبت استرداد این مرجوعی
+									</button>
+								)}
+							</div>
 						))}
 					</div>
 				</section>

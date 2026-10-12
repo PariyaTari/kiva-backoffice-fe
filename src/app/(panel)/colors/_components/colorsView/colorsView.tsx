@@ -8,6 +8,7 @@ import { ERROR_BEHAVIOUR } from "@/app/(panel)/categories/_utils/apiError";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
 import Loading from "@/app/_components/common/loading/loading";
 import { Icon } from "@/app/_components/icon/icons";
+import ConfirmModal from "@/app/_components/panel/confirmModal/confirmModal";
 import DataTable from "@/app/_components/panel/dataTable/dataTable";
 import { Column } from "@/app/_components/panel/dataTable/dataTable.type";
 import ModalHead from "@/app/_components/panel/modalHead/modalHead";
@@ -29,9 +30,24 @@ import { ColorsEndpoints } from "../../_api/colorsEndpoints";
 const KEY = /^[a-z][a-z0-9-]{1,30}$/;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 
-/** `/colors` — the palette every colour variant picks from (swatches on cards, the colour filter). */
+/**
+ * `/colors` — the palette every colour variant picks from (swatches on cards, the colour filter). A colour no
+ * product uses can be deleted (`DELETE /admin/colors/{key}`, 1.5.0); one in use answers `409 IN_USE`.
+ */
 export default function ColorsView() {
+	const queryClient = useQueryClient();
 	const [editing, setEditing] = useState<{ color: Color | null } | null>(null);
+	const [removing, setRemoving] = useState<Color | null>(null);
+
+	const remove = useMutation({
+		mutationFn: (c: Color) => withMappedError(() => ColorsEndpoints.deleteColor(c.key)),
+		meta: { showNotification: true },
+		onSuccess: (_, c) => {
+			toast(`رنگ «${c.name}» حذف شد`, { icon: "check" });
+			queryClient.invalidateQueries({ queryKey: ["taxonomy", "colors"] });
+			setRemoving(null);
+		},
+	});
 
 	const colors = useQuery({
 		queryKey: ["taxonomy", "colors"],
@@ -69,6 +85,16 @@ export default function ColorsView() {
 					<button type="button" className="icon-btn" aria-label="ویرایش" title="ویرایش" onClick={() => setEditing({ color: c })}>
 						<Icon name="edit" />
 					</button>
+					<button
+						type="button"
+						className="icon-btn del"
+						aria-label="حذف"
+						title={c.productCount ? `روی ${toPersianDigits(c.productCount)} محصول است؛ ورینت‌هایش را غیرفعال کن` : "حذف"}
+						disabled={!!c.productCount}
+						onClick={() => setRemoving(c)}
+					>
+						<Icon name="trash" />
+					</button>
 				</span>
 			),
 		},
@@ -80,7 +106,7 @@ export default function ColorsView() {
 		<>
 			<PageHead
 				title="رنگ‌ها"
-				subtitle="پالت رنگ‌های کیوا؛ هر رنگ محصول (ورینت) یکی از این‌هاست. رنگ حذف‌شدنی نیست."
+				subtitle="پالت رنگ‌های کیوا؛ هر رنگ محصول (ورینت) یکی از این‌هاست. فقط رنگی که روی هیچ محصولی نیست حذف می‌شود."
 				actions={
 					<Button size="sm" onClick={() => setEditing({ color: null })} iconStart={<Icon name="plus" />}>
 						رنگ جدید
@@ -99,6 +125,18 @@ export default function ColorsView() {
 			<p className="note" style={{ marginTop: 14 }}>
 				برای دیدن محصولات یک رنگ از <Link href="/products">فهرست محصولات</Link> استفاده کن.
 			</p>
+
+			<ConfirmModal
+				open={!!removing}
+				onClose={() => setRemoving(null)}
+				icon="trash"
+				tone="danger"
+				title="حذف رنگ"
+				text={removing ? `«${removing.name}» از پالت حذف شود؟ اگر پیام رضایتی به آن اشاره کند، حذف نمی‌شود.` : undefined}
+				confirmLabel="حذف"
+				loading={remove.isPending}
+				onConfirm={() => removing && remove.mutate(removing)}
+			/>
 
 			<Modal open={!!editing} onClose={() => setEditing(null)} width={480}>
 				{editing && <ColorForm key={editing.color?.key ?? "new"} color={editing.color} nextSortOrder={(colors.data?.length ?? 0) + 1} onClose={() => setEditing(null)} />}

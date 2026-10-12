@@ -6,39 +6,54 @@ import classNames from "classnames";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
 import Loading from "@/app/_components/common/loading/loading";
+import { Icon } from "@/app/_components/icon/icons";
 import DataTable, { TableEmpty } from "@/app/_components/panel/dataTable/dataTable";
 import { Column } from "@/app/_components/panel/dataTable/dataTable.type";
 import PageHead from "@/app/_components/panel/pageHead/pageHead";
 import TableFooter from "@/app/_components/panel/pager/pager";
 import StatusTag from "@/app/_components/panel/statusTag/statusTag";
 import Button from "@/app/_components/ui/button/button";
+import { useCan } from "@/hooks/useCan";
 import { useTableState } from "@/hooks/useTableState";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { ReturnStatus } from "@/types/order.type";
+import { AdminReturnRequest, ReturnStatus } from "@/types/order.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
-import { formatDateTime, formatToman, relativeTime } from "@/utils/format";
-import { KIVA_FAULT_REASONS, labelOf, REFUND_METHOD, RETURN_REASON, RETURN_STATUS, RETURN_STATUS_TONE } from "@/utils/labels";
+import { formatDateTime, formatPhone, formatToman, relativeTime } from "@/utils/format";
+import { KIVA_FAULT_REASONS, labelOf, REFUND_METHOD, REFUND_STATUS, RETURN_REASON, RETURN_STATUS, RETURN_STATUS_TONE } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
-import { AdminReturn, ReturnsEndpoints } from "../../_api/returnsEndpoints";
+import { ReturnsEndpoints } from "../../_api/returnsEndpoints";
 import { ERROR_BEHAVIOUR } from "../../_utils/apiError";
 import DecisionModal from "../decisionModal/decisionModal";
+import { CloseModal, PickupModal, ReceiptModal } from "../returnStepModals/returnStepModals";
 
+/** The cycle in working order (contract §4), then the ends. */
 const TABS: { value: ReturnStatus | ""; label: string }[] = [
 	{ value: "REQUESTED", label: "منتظر تصمیم" },
 	{ value: "APPROVED", label: "تأیید شده" },
-	{ value: "RECEIVED", label: "دریافت شده" },
+	{ value: "PICKUP_SCHEDULED", label: "در حال جمع‌آوری" },
+	{ value: "RECEIVED", label: "رسیده به انبار" },
 	{ value: "REFUNDED", label: "وجه برگشت داده شد" },
+	{ value: "CLOSED", label: "بسته شده" },
 	{ value: "REJECTED", label: "رد شده" },
 	{ value: "", label: "همه" },
 ];
 
-/** `/returns` — the return requests (FEATURES §3.6): decide on the new ones; the later steps have no endpoint yet (§7 #8). */
+type Step = "decide" | "pickup" | "receipt" | "close";
+
+/**
+ * `/returns` — the whole return cycle (FEATURES §3.6, contract §4): decide → (Kiva collects the parcel) → it reaches
+ * the warehouse → refund (ADMIN, on the order page) or close without one. Each row offers only the server's
+ * `allowedTransitions`.
+ */
 export default function ReturnsView() {
+	const can = useCan();
 	const [f, setF] = useUrlFilters({ status: "REQUESTED" });
 	const status = f.status as ReturnStatus | "";
 	const { page, setPage, pageSize, setPageSize } = useTableState({ resetPageOn: [status] });
-	const [deciding, setDeciding] = useState<AdminReturn | null>(null);
+	const [open, setOpen] = useState<{ step: Step; item: AdminReturnRequest } | null>(null);
+	const itemFor = (step: Step) => (open?.step === step ? open.item : null);
+	const close = () => setOpen(null);
 
 	const list = useQuery({
 		queryKey: ["returns", "list", { status, page, pageSize }],
@@ -47,16 +62,21 @@ export default function ReturnsView() {
 		meta: { showNotificationOnRefetch: true },
 	});
 
-	const columns: Column<AdminReturn>[] = [
+	const columns: Column<AdminReturnRequest>[] = [
 		{ key: "code", title: "مرجوعی", className: "nowrap", render: (r) => <span className="code">{r.code}</span> },
 		{
 			key: "order",
-			title: "سفارش",
+			title: "سفارش و مشتری",
 			className: "nowrap",
 			render: (r) => (
-				<Link className="code" href={`/orders/${encodeURIComponent(r.orderCode)}`} style={{ color: "var(--purple)" }}>
-					{r.orderCode}
-				</Link>
+				<>
+					<Link className="code" href={`/orders/${encodeURIComponent(r.orderCode)}`} style={{ color: "var(--purple)" }}>
+						{r.orderCode}
+					</Link>
+					<span className="sub">
+						{r.customer.fullName ?? "—"} · <span className="ltr">{formatPhone(r.customer.phone)}</span>
+					</span>
+				</>
 			),
 		},
 		{
@@ -89,17 +109,35 @@ export default function ReturnsView() {
 			key: "refund",
 			title: "برگشت پول",
 			className: "nowrap",
-			render: (r) => (r.refund ? `${formatToman(r.refund.amount)} · ${labelOf(REFUND_METHOD, r.refund.method)}` : <span className="muted">—</span>),
+			render: (r) => (
+				<>
+					{r.refund ? `${formatToman(r.refund.amount)} · ${labelOf(REFUND_STATUS, r.refund.status)}` : labelOf(REFUND_METHOD, r.refundMethod ?? "ORIGINAL_PAYMENT")}
+					{r.iban && <span className="sub ltr">{r.iban}</span>}
+				</>
+			),
 		},
 		{
 			key: "status",
 			title: "وضعیت",
-			className: "nowrap",
 			render: (r) => (
 				<>
 					<StatusTag value={r.status} labels={RETURN_STATUS} tones={RETURN_STATUS_TONE} />
-					{r.shippingPaidBy && <span className="sub">هزینه‌ی برگشت: {r.shippingPaidBy === "KIVA" ? "کیوا" : "مشتری"}</span>}
-					{r.rejectionReason && <span className="sub">{r.rejectionReason}</span>}
+					{r.shippingPaidBy && r.status === "APPROVED" && <span className="sub">هزینه‌ی برگشت: {r.shippingPaidBy === "KIVA" ? "کیوا" : "مشتری"}</span>}
+					{r.pickup && r.status === "PICKUP_SCHEDULED" && (
+						<span className="sub">
+							{r.pickup.carrierName}
+							{r.pickup.scheduledFor && ` · ${formatDateTime(r.pickup.scheduledFor)}`}
+							{r.pickup.trackingCode && <span className="ltr"> · {r.pickup.trackingCode}</span>}
+						</span>
+					)}
+					{r.receivedAt && r.status === "RECEIVED" && (
+						<span className="sub">
+							رسید {formatDateTime(r.receivedAt)}
+							{r.receipt && ` · برگشت به فروش ${toPersianDigits(r.receipt.items.reduce((n, i) => n + i.restockQuantity, 0))}`}
+						</span>
+					)}
+					{r.rejectionReason && r.status === "REJECTED" && <span className="sub">{r.rejectionReason}</span>}
+					{r.closeReason && r.status === "CLOSED" && <span className="sub">{r.closeReason}</span>}
 				</>
 			),
 		},
@@ -107,12 +145,39 @@ export default function ReturnsView() {
 			key: "acts",
 			title: "",
 			className: "end",
-			render: (r) =>
-				r.status === "REQUESTED" ? (
-					<Button size="sm" onClick={() => setDeciding(r)}>
-						بررسی و تصمیم
-					</Button>
-				) : null,
+			render: (r) => {
+				const next = r.allowedTransitions;
+				return (
+					<span className="row-acts">
+						{r.status === "REQUESTED" && (
+							<Button size="sm" onClick={() => setOpen({ step: "decide", item: r })}>
+								بررسی و تصمیم
+							</Button>
+						)}
+						{next.includes("PICKUP_SCHEDULED") && (
+							<Button size="sm" variant="white" onClick={() => setOpen({ step: "pickup", item: r })} iconStart={<Icon name="truck" />}>
+								{r.pickup ? "تغییر جمع‌آوری" : "جمع‌آوری"}
+							</Button>
+						)}
+						{next.includes("RECEIVED") && (
+							<Button size="sm" onClick={() => setOpen({ step: "receipt", item: r })} iconStart={<Icon name="box" />}>
+								رسید به انبار
+							</Button>
+						)}
+						{next.includes("REFUNDED") && can("refunds") && (
+							<Button size="sm" href={`/orders/${encodeURIComponent(r.orderCode)}?refund=${r.id}`} iconStart={<Icon name="wallet" />}>
+								ثبت استرداد
+							</Button>
+						)}
+						{next.includes("REFUNDED") && !can("refunds") && <span className="sub">منتظر استرداد (مدیر کل)</span>}
+						{next.includes("CLOSED") && (
+							<button type="button" className="btn btn-link btn-sm" style={{ color: "var(--danger)" }} onClick={() => setOpen({ step: "close", item: r })}>
+								بستن بدون استرداد
+							</button>
+						)}
+					</span>
+				);
+			},
 		},
 	];
 
@@ -120,7 +185,7 @@ export default function ReturnsView() {
 
 	return (
 		<>
-			<PageHead title="مرجوعی‌ها" subtitle="درخواست‌های بازگشت تا ۷ روز بعد از تحویل؛ تأیید یا رد، و اینکه هزینه‌ی برگشت با کیه." />
+			<PageHead title="مرجوعی‌ها" subtitle="درخواست‌های بازگشت تا ۷ روز بعد از تحویل: تصمیم، جمع‌آوری مرسوله، رسیدن به انبار، استرداد یا بستن." />
 
 			<div className="tabs bo-tabs" role="tablist">
 				{TABS.map((t) => (
@@ -148,12 +213,10 @@ export default function ReturnsView() {
 				/>
 			) : null}
 
-			<p className="note" style={{ marginTop: 14 }}>
-				ادامه‌ی چرخه (زمان‌بندی ارسال، دریافت در انبار، بستن) در کانترکت endpoint ندارد؛ وضعیت سفارش را از صفحه‌ی سفارش به «مرجوع شد» و بعد «وجه برگشت داده شد» ببر و
-				استرداد را همان‌جا ثبت کن.
-			</p>
-
-			<DecisionModal item={deciding} onClose={() => setDeciding(null)} />
+			<DecisionModal item={itemFor("decide")} onClose={close} />
+			<PickupModal item={itemFor("pickup")} onClose={close} />
+			<ReceiptModal item={itemFor("receipt")} onClose={close} />
+			<CloseModal item={itemFor("close")} onClose={close} />
 		</>
 	);
 }

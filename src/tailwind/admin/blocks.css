@@ -101,3 +101,7 @@
 .note.new-orders{align-items:center;margin-bottom:12px}
 .note.new-orders svg{margin-top:0}
 .note.new-orders .btn{margin-inline-start:auto}
+
+/* return receipt rows (returns) */
+.rcpt-row{display:grid;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r)}
+.rcpt-row b small{font-weight:500;color:var(--ink-50)}

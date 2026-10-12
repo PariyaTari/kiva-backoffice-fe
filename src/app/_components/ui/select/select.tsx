@@ -23,7 +23,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
 			<select id={selectId} ref={ref} className={classNames("select", className)} aria-invalid={!!error || undefined} {...rest}>
 				{placeholder !== undefined && <option value="">{placeholder}</option>}
 				{options.map((opt) => (
-					<option key={opt.value} value={opt.value}>
+					<option key={opt.value} value={opt.value} disabled={opt.disabled}>
 						{opt.label}
 					</option>
 				))}

@@ -26,6 +26,9 @@ export type Category = CategoryRef & {
 	seo?: SeoMeta;
 };
 
+/** 1.5.0 `AdminCategory` — plus the image's media id, so the edit form can keep the current image. */
+export type AdminCategory = Category & { imageMediaId: string | null };
+
 export type Material = MaterialRef & { description: string | null; careInstructions: string[]; productCount?: number };
 
 export type PriceInfo = { price: Money; compareAtPrice: Money | null; discountPercent?: number; discountAmount?: Money; currency?: "IRT" };

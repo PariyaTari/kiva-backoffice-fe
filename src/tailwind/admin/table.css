@@ -60,3 +60,6 @@
 .tabs.bo-tabs + .tbl-wrap{border-radius:0 0 var(--r-xl) var(--r-xl)}
 .tabs.bo-tabs button{padding:13px 14px;font-size:13.5px}
 .tabs.bo-tabs button::after{right:14px;left:14px}
+
+/* row action buttons (returns) */
+.tbl .row-acts{display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}

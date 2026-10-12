@@ -9,6 +9,7 @@ import ErrorComponent from "@/app/_components/common/errorComponent2/errorCompon
 import Loading from "@/app/_components/common/loading/loading";
 import { Icon } from "@/app/_components/icon/icons";
 import ChipsInput from "@/app/_components/panel/chipsInput/chipsInput";
+import ConfirmModal from "@/app/_components/panel/confirmModal/confirmModal";
 import DataTable from "@/app/_components/panel/dataTable/dataTable";
 import { Column } from "@/app/_components/panel/dataTable/dataTable.type";
 import ModalHead from "@/app/_components/panel/modalHead/modalHead";
@@ -19,7 +20,7 @@ import Modal from "@/app/_components/ui/modal/modal";
 import Select from "@/app/_components/ui/select/select";
 import Textarea from "@/app/_components/ui/textarea/textarea";
 import { toast } from "@/store/notification.store";
-import { Material, MaterialFamily } from "@/types/catalog.type";
+import { Material, MaterialFamily, MaterialUpsertRequest } from "@/types/catalog.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
@@ -28,25 +29,14 @@ import { withMappedError } from "@/utils/withMappedError";
 
 const SLUG = /^(?=.*[a-z])[a-z0-9]+(-[a-z0-9]+)*$/;
 
-const COLUMNS: Column<Material>[] = [
-	{
-		key: "name",
-		title: "متریال",
-		render: (m) => (
-			<>
-				<b>{m.name}</b>
-				<span className="sub ltr">{m.slug}</span>
-			</>
-		),
-	},
-	{ key: "family", title: "خانواده", className: "nowrap", render: (m) => labelOf(MATERIAL_FAMILY, m.family) },
-	{ key: "care", title: "نگهداری", render: (m) => (m.careInstructions.length ? m.careInstructions.join("، ") : <span className="muted">—</span>) },
-	{ key: "count", title: "محصول", className: "nowrap", render: (m) => toPersianDigits(m.productCount ?? 0) },
-];
-
-/** `/materials` — product materials (filters and the «مشخصات» tab). The contract only allows adding (FEATURES §7 #6). */
+/**
+ * `/materials` — product materials (the shop's filter and the «مشخصات» tab): `GET /admin/materials` with product
+ * counts, add, edit, and delete one no product uses (`409 IN_USE` otherwise).
+ */
 export default function MaterialsView() {
-	const [adding, setAdding] = useState(false);
+	const queryClient = useQueryClient();
+	const [editing, setEditing] = useState<{ material: Material | null } | null>(null);
+	const [removing, setRemoving] = useState<Material | null>(null);
 
 	const materials = useQuery({
 		queryKey: ["taxonomy", "materials"],
@@ -54,15 +44,63 @@ export default function MaterialsView() {
 		meta: { showNotificationOnRefetch: true },
 	});
 
+	const remove = useMutation({
+		mutationFn: (m: Material) => withMappedError(() => ColorsEndpoints.deleteMaterial(m.id)),
+		meta: { showNotification: true },
+		onSuccess: (_, m) => {
+			toast(`متریال «${m.name}» حذف شد`, { icon: "check" });
+			queryClient.invalidateQueries({ queryKey: ["taxonomy", "materials"] });
+			setRemoving(null);
+		},
+	});
+
+	const columns: Column<Material>[] = [
+		{
+			key: "name",
+			title: "متریال",
+			render: (m) => (
+				<>
+					<b>{m.name}</b>
+					<span className="sub ltr">{m.slug}</span>
+				</>
+			),
+		},
+		{ key: "family", title: "خانواده", className: "nowrap", render: (m) => labelOf(MATERIAL_FAMILY, m.family) },
+		{ key: "care", title: "نگهداری", render: (m) => (m.careInstructions.length ? m.careInstructions.join("، ") : <span className="muted">—</span>) },
+		{ key: "count", title: "محصول", className: "nowrap", render: (m) => toPersianDigits(m.productCount ?? 0) },
+		{
+			key: "acts",
+			title: "",
+			className: "end",
+			render: (m) => (
+				<span className="row-acts">
+					<button type="button" className="icon-btn" aria-label="ویرایش" title="ویرایش" onClick={() => setEditing({ material: m })}>
+						<Icon name="edit" />
+					</button>
+					<button
+						type="button"
+						className="icon-btn del"
+						aria-label="حذف"
+						title={m.productCount ? `${toPersianDigits(m.productCount)} محصول از این متریال است` : "حذف"}
+						disabled={!!m.productCount}
+						onClick={() => setRemoving(m)}
+					>
+						<Icon name="trash" />
+					</button>
+				</span>
+			),
+		},
+	];
+
 	const materialsError = toErrorView(ERROR_BEHAVIOUR, materials.error, "دریافت متریال‌ها با خطا مواجه شد.");
 
 	return (
 		<>
 			<PageHead
 				title="متریال‌ها"
-				subtitle="جنس محصولات؛ فیلتر فروشگاه و جدول مشخصات از این‌ها می‌خوانند."
+				subtitle="جنس محصولات؛ فیلتر فروشگاه و جدول مشخصات از این‌ها می‌خوانند. فقط متریالی که هیچ محصولی ندارد حذف می‌شود."
 				actions={
-					<Button size="sm" onClick={() => setAdding(true)} iconStart={<Icon name="plus" />}>
+					<Button size="sm" onClick={() => setEditing({ material: null })} iconStart={<Icon name="plus" />}>
 						متریال جدید
 					</Button>
 				}
@@ -80,36 +118,43 @@ export default function MaterialsView() {
 					loading={materials.isFetching}
 				/>
 			) : !materials.error && !!materials.data ? (
-				<DataTable caption="متریال‌ها" columns={COLUMNS} rows={materials.data} rowKey={(m) => m.id} loading={materials.isFetching} />
+				<DataTable caption="متریال‌ها" columns={columns} rows={materials.data} rowKey={(m) => m.id} loading={materials.isFetching} />
 			) : null}
-			<p className="note" style={{ marginTop: 14 }}>
-				ویرایش و حذف متریال در کانترکت فعلی endpoint ندارد؛ برای اصلاح، با تیم بک‌اند هماهنگ کن.
-			</p>
 
-			<Modal open={adding} onClose={() => setAdding(false)} width={560}>
-				<MaterialForm onClose={() => setAdding(false)} />
+			<ConfirmModal
+				open={!!removing}
+				onClose={() => setRemoving(null)}
+				icon="trash"
+				tone="danger"
+				title="حذف متریال"
+				text={removing ? `«${removing.name}» حذف شود؟` : undefined}
+				confirmLabel="حذف"
+				loading={remove.isPending}
+				onConfirm={() => removing && remove.mutate(removing)}
+			/>
+
+			<Modal open={!!editing} onClose={() => setEditing(null)} width={560}>
+				{editing && <MaterialForm key={editing.material?.id ?? "new"} material={editing.material} onClose={() => setEditing(null)} />}
 			</Modal>
 		</>
 	);
 }
 
-function MaterialForm({ onClose }: { onClose: () => void }) {
+function MaterialForm({ material, onClose }: { material: Material | null; onClose: () => void }) {
 	const queryClient = useQueryClient();
-	const [name, setName] = useState("");
-	const [slug, setSlug] = useState("");
-	const [family, setFamily] = useState<MaterialFamily | "">("");
-	const [description, setDescription] = useState("");
-	const [care, setCare] = useState<string[]>([]);
+	const [name, setName] = useState(material?.name ?? "");
+	const [slug, setSlug] = useState(material?.slug ?? "");
+	const [family, setFamily] = useState<MaterialFamily | "">(material?.family ?? "");
+	const [description, setDescription] = useState(material?.description ?? "");
+	const [care, setCare] = useState<string[]>(material?.careInstructions ?? []);
 	const [touched, setTouched] = useState(false);
 
+	const payload = (): MaterialUpsertRequest => ({ name: name.trim(), slug, family: family as MaterialFamily, description: description.trim() || null, careInstructions: care });
 	const save = useMutation({
-		mutationFn: () =>
-			withMappedError(() =>
-				ColorsEndpoints.createMaterial({ name: name.trim(), slug, family: family as MaterialFamily, description: description.trim() || null, careInstructions: care }),
-			),
+		mutationFn: () => withMappedError(() => (material ? ColorsEndpoints.updateMaterial(material.id, payload()) : ColorsEndpoints.createMaterial(payload()))),
 		meta: { showNotification: true },
 		onSuccess: (m) => {
-			toast(`متریال «${m.name}» اضافه شد`, { icon: "check" });
+			toast(material ? `متریال «${m.name}» ذخیره شد` : `متریال «${m.name}» اضافه شد`, { icon: "check" });
 			queryClient.invalidateQueries({ queryKey: ["taxonomy"] });
 			onClose();
 		},
@@ -120,7 +165,7 @@ function MaterialForm({ onClose }: { onClose: () => void }) {
 
 	return (
 		<>
-			<ModalHead icon="leaf" title="متریال جدید" />
+			<ModalHead icon="leaf" title={material ? `ویرایش «${material.name}»` : "متریال جدید"} subtitle={material?.productCount ? `${toPersianDigits(material.productCount)} محصول؛ نام تازه در جستجوی آن‌ها هم می‌نشیند.` : undefined} />
 			<div className="m-body">
 				<div className="form-grid">
 					<Input label="نام" value={name} onChange={(e) => setName(e.target.value)} error={(touched && local.name) || server.name} placeholder="چرم طبیعی گاوی" />
@@ -141,7 +186,7 @@ function MaterialForm({ onClose }: { onClose: () => void }) {
 					}}
 					isLoading={save.isPending}
 				>
-					افزودن
+					{material ? "ذخیره" : "افزودن"}
 				</Button>
 			</div>
 		</>

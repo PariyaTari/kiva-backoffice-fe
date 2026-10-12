@@ -1,13 +1,22 @@
 import { Icon } from "@/app/_components/icon/icons";
 import StatusTag from "@/app/_components/panel/statusTag/statusTag";
-import { AdminOrder } from "@/types/order.type";
+import { AdminOrder, Refund } from "@/types/order.type";
 import { formatDateTime, formatPrice, formatToman } from "@/utils/format";
 import { PAYMENT_STATUS, PAYMENT_STATUS_TONE, REFUND_METHOD, REFUND_STATUS, REFUND_STATUS_TONE, labelOf } from "@/utils/labels";
+import { isRefundOpen } from "../refundTrackModal/refundTrackModal";
 
 const FREE_REASON: Record<string, string> = { THRESHOLD: "خرید بالای سقف", RESERVATION_CONSOLIDATION: "پیوسته به رزرو" };
 
 /** The money of an order: totals (cart formula, FEATURES §3.8), every payment attempt and every refund. */
-export default function OrderMoney({ order, onRefund }: { order: AdminOrder; onRefund?: () => void }) {
+type OrderMoneyProps = {
+	order: AdminOrder;
+	/** «استرداد وجه» — ADMIN only. */
+	onRefund?: () => void;
+	/** «پیگیری» of an open refund (`PATCH /admin/refunds/{id}`) — ADMIN only. */
+	onTrackRefund?: (refund: Refund) => void;
+};
+
+export default function OrderMoney({ order, onRefund, onTrackRefund }: OrderMoneyProps) {
 	const t = order.totals;
 	return (
 		<section className="icard">
@@ -55,6 +64,15 @@ export default function OrderMoney({ order, onRefund }: { order: AdminOrder; onR
 					</div>
 				)}
 			</div>
+			{!!t.balanceDue && (
+				<p className="note cream due">
+					<Icon name="wallet" />
+					<span>
+						<b>مانده‌ی پرداخت مشتری: {formatToman(t.balanceDue)}</b> — بعد از درخواست تغییر به رنگ/مدل گران‌تر. مشتری از حساب کاربری‌اش می‌پردازد و تا
+						صفر نشود سفارش ارسال نمی‌شود.
+					</span>
+				</p>
+			)}
 
 			{!!order.payments.length && (
 				<>
@@ -81,17 +99,25 @@ export default function OrderMoney({ order, onRefund }: { order: AdminOrder; onR
 					<h4 style={{ fontSize: 13.5, marginBottom: 8 }}>استردادها</h4>
 					<div className="stack" style={{ gap: 8 }}>
 						{order.refunds.map((r) => (
-							<div key={r.id} style={{ display: "grid", gap: 2, fontSize: 13, background: "var(--lilac-50)", borderRadius: 10, padding: "8px 12px" }}>
-								<span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+							<div key={r.id} className="refund-row">
+								<span className="h">
 									<b>{formatToman(r.amount)}</b>
 									<StatusTag value={r.status} labels={REFUND_STATUS} tones={REFUND_STATUS_TONE} />
 									<span className="muted">{labelOf(REFUND_METHOD, r.method)}</span>
+									{onTrackRefund && isRefundOpen(r) && (
+										<button type="button" className="btn btn-outline btn-sm" onClick={() => onTrackRefund(r)}>
+											پیگیری
+										</button>
+									)}
 								</span>
 								<span className="muted">
 									{r.reason === "ORDER_CANCELLED" ? "لغو سفارش" : r.reason}
-									{r.completedAt ? ` · انجام شد ${formatDateTime(r.completedAt)}` : r.expectedBy ? ` · تا ${formatDateTime(r.expectedBy)}` : ""}
+									{r.returnId != null && !r.reason?.includes(order.returns.find((x) => x.id === r.returnId)?.code ?? "#") && ` · مرجوعی ${order.returns.find((x) => x.id === r.returnId)?.code ?? `#${r.returnId}`}`}
+									{r.createdAt && ` · ثبت ${formatDateTime(r.createdAt)}`}
+									{r.completedAt ? ` · انجام شد ${formatDateTime(r.completedAt)}` : r.expectedBy && r.status !== "FAILED" ? ` · تا ${formatDateTime(r.expectedBy)}` : ""}
 									{r.referenceId ? ` · پیگیری ${r.referenceId}` : ""}
 								</span>
+								{r.statusNote && <span className="note-line">«{r.statusNote}»</span>}
 							</div>
 						))}
 					</div>

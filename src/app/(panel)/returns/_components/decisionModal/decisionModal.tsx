@@ -8,13 +8,13 @@ import Button from "@/app/_components/ui/button/button";
 import Modal from "@/app/_components/ui/modal/modal";
 import Textarea from "@/app/_components/ui/textarea/textarea";
 import { toast } from "@/store/notification.store";
-import { ShippingPaidBy } from "@/types/order.type";
+import { AdminReturnRequest, ShippingPaidBy } from "@/types/order.type";
 import { toPersianDigits } from "@/utils/digits";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
 import { formatDateTime } from "@/utils/format";
 import { KIVA_FAULT_REASONS, labelOf, RETURN_REASON } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
-import { AdminReturn, ReturnsEndpoints } from "../../_api/returnsEndpoints";
+import { ReturnsEndpoints } from "../../_api/returnsEndpoints";
 import { isAlreadyDecidedError } from "../../_utils/apiError";
 
 const INSTRUCTIONS = {
@@ -22,7 +22,7 @@ const INSTRUCTIONS = {
 	CUSTOMER: "کیف رو با بسته‌بندی اصلی و همه‌ی متعلقاتش به انبار کیوا بفرست؛ هزینه‌ی ارسال برگشت با خودته. نشانی انبار برات پیامک می‌شه. کد درخواست رو روی بسته بنویس.",
 };
 
-type DecisionModalProps = { item: AdminReturn | null; onClose: () => void };
+type DecisionModalProps = { item: AdminReturnRequest | null; onClose: () => void };
 
 /** `POST /admin/returns/{id}/decision` — approve (who pays the return shipping + the shopper's instructions) or reject. */
 export default function DecisionModal({ item, onClose }: DecisionModalProps) {
@@ -33,7 +33,7 @@ export default function DecisionModal({ item, onClose }: DecisionModalProps) {
 	);
 }
 
-function DecisionForm({ item, onClose }: { item: AdminReturn; onClose: () => void }) {
+function DecisionForm({ item, onClose }: { item: AdminReturnRequest; onClose: () => void }) {
 	const queryClient = useQueryClient();
 	const kivaFault = KIVA_FAULT_REASONS.includes(item.reason);
 	const [approve, setApprove] = useState(true);

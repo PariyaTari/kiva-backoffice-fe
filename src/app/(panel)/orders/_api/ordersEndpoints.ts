@@ -6,11 +6,13 @@ import {
 	AdminOrder,
 	AdminOrderFilters,
 	AdminOrderListResponse,
+	ChangeRequestResolutionPayload,
 	OrderStatusChangePayload,
 	PreShipmentMedia,
 	PreShipmentMediaPayload,
 	Refund,
 	RefundPayload,
+	RefundUpdatePayload,
 	SendMediaPayload,
 	ShipmentPayload,
 } from "@/types/order.type";
@@ -62,9 +64,24 @@ export const OrdersEndpoints = {
 		return res.data;
 	},
 
+	/**
+	 * Carry out or turn down the shopper's change request (`CHANGE_REQUESTED` → `PROCESSING`, photos again). A dearer
+	 * colour/model leaves `totals.balanceDue`, a cheaper one a `PENDING` refund; dropping the only line cancels the order.
+	 */
+	resolveChangeRequest: async (code: OrderCode, payload: ChangeRequestResolutionPayload) => {
+		const res = await httpClient.call<AdminOrder>({ method: "POST", url: orderUrl(code, "/change-request/resolution"), data: payload });
+		return res.data;
+	},
+
 	/** ADMIN only — full or partial, optionally tied to a return. */
 	createRefund: async (code: OrderCode, payload: RefundPayload) => {
 		const res = await httpClient.call<Refund>({ method: "POST", url: orderUrl(code, "/refunds"), data: payload });
+		return res.data;
+	},
+
+	/** ADMIN only — a refund moves on: `PROCESSING`, `COMPLETED` (with the bank's tracking number) or `FAILED`. */
+	updateRefund: async (refundId: number, payload: RefundUpdatePayload) => {
+		const res = await httpClient.call<Refund>({ method: "PATCH", url: `admin/refunds/${refundId}`, data: payload });
 		return res.data;
 	},
 

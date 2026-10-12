@@ -15,6 +15,8 @@ type OrderMediaProps = {
 	order: AdminOrder;
 	onEdit: () => void;
 	onSend: () => void;
+	/** Opens «رسیدگی به درخواست تغییر» (`…/change-request/resolution`). */
+	onResolve: () => void;
 };
 
 /** One photo/video tile with its view («نمای جلو»), as the account page's `.mthumb`. */
@@ -36,10 +38,11 @@ export function MediaThumb({ item }: { item: OrderMediaItem }) {
  * «امضای کیوا» — the photos of the very bag, where they go (messenger + number), when they went, the deadline and
  * the shopper's answer (approve / change request). The operator's two steps: attach photos, send them.
  */
-export default function OrderMedia({ order, onEdit, onSend }: OrderMediaProps) {
+export default function OrderMedia({ order, onEdit, onSend, onResolve }: OrderMediaProps) {
 	const m = order.preShipmentMediaDetail;
 	const fb = m.feedback;
 	const changedItem = fb?.orderItemId ? order.items.find((i) => i.id === fb.orderItemId) : null;
+	const res = fb?.resolution ?? null;
 	const editable = MEDIA_EDITABLE.includes(order.status);
 	const sendable = MEDIA_SENDABLE.includes(order.status) && m.items.length > 0;
 
@@ -103,10 +106,22 @@ export default function OrderMedia({ order, onEdit, onSend }: OrderMediaProps) {
 						</span>
 					)}
 					{fb.note && <span>«{fb.note}»</span>}
-					{fb.decision === "REQUEST_CHANGE" && (
-						<span style={{ fontSize: 12 }}>
-							انجام تغییر در کانترکت endpoint ندارد (FEATURES §۷ #۷): با مشتری هماهنگ کن، یادداشت بگذار و برای عکاسی دوباره وضعیت را به «در حال آماده‌سازی» برگردان.
+					{res ? (
+						<span className={classNames("res", res.decision === "APPLY" ? "ok" : "no")}>
+							<Icon name={res.decision === "APPLY" ? "check" : "ban"} />
+							{res.decision === "APPLY" ? "اجرا شد" : "رد شد"} · {formatDateTime(res.at)}
+							{res.note && <> · «{res.note}»</>}
+							{order.status === "PROCESSING" && m.status === "WAITING" && <> — عکس تازه بگیر و بفرست.</>}
 						</span>
+					) : (
+						order.status === "CHANGE_REQUESTED" && (
+							<span className="res-act">
+								با مشتری هماهنگ کن، بعد درخواست را اجرا یا رد کن؛ سفارش برای عکاسی دوباره برمی‌گردد.
+								<button type="button" className="btn btn-primary btn-sm" onClick={onResolve}>
+									<Icon name="swap" /> رسیدگی به درخواست
+								</button>
+							</span>
+						)
 					)}
 				</div>
 			)}

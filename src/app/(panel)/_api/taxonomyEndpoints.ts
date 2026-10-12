@@ -1,16 +1,16 @@
 import { httpClient } from "@/httpClient/HttpClient";
-import { Category, Material } from "@/types/catalog.type";
+import { AdminCategory, Category, Material } from "@/types/catalog.type";
 import { StoreProduct } from "@/types/marketing.type";
 import { Color } from "@/types/order.type";
 
 /**
  * The catalogue's lookups that many panel forms need (product, category, discount code, campaign, testimonial).
- * Colours and materials have no admin list (FEATURES §7 #6) — they are read from the public endpoints.
+ * Colours come from the public `GET /colors` (it has `productCount`); materials from `GET /admin/materials` (1.5.0).
  */
 export const TaxonomyEndpoints = {
 	/** Every category, including those hidden from the menu (`GET /admin/categories`, ADMIN · CATALOG_MANAGER). */
 	getAdminCategories: async () => {
-		const res = await httpClient.call<Category[]>({ method: "GET", url: "admin/categories" });
+		const res = await httpClient.call<AdminCategory[]>({ method: "GET", url: "admin/categories" });
 		return res.data;
 	},
 
@@ -25,8 +25,9 @@ export const TaxonomyEndpoints = {
 		return res.data;
 	},
 
+	/** Every material with its product count (`GET /admin/materials`, ADMIN · CATALOG_MANAGER). */
 	getMaterials: async () => {
-		const res = await httpClient.call<Material[]>({ method: "GET", url: "materials" });
+		const res = await httpClient.call<Material[]>({ method: "GET", url: "admin/materials" });
 		return res.data;
 	},
 

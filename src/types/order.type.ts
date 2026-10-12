@@ -128,6 +128,8 @@ export type OrderTotals = {
 	giftWrapCost?: Money;
 	payable: Money;
 	refunded: Money;
+	/** 1.5.0 — left to pay after a change to a dearer colour/model; the order does not ship until it is 0. */
+	balanceDue?: Money;
 };
 
 export type AddressSnapshot = {
@@ -154,7 +156,12 @@ export type PreShipmentFeedback = {
 	changeType?: "COLOR" | "MODEL" | "CANCEL_ITEM" | "OTHER" | null;
 	orderItemId?: number | null;
 	desiredVariantId?: number | null;
+	/** 1.5.0 — what the operator did with the request (`…/change-request/resolution`); `null` until then. */
+	resolution?: ChangeRequestResolution | null;
 };
+
+export type ChangeRequestDecision = "APPLY" | "REJECT";
+export type ChangeRequestResolution = { decision: ChangeRequestDecision; variantId: number | null; note: string | null; at: string };
 
 export type PreShipmentMedia = {
 	status: MediaStatus;
@@ -186,9 +193,15 @@ export type Refund = {
 	method: RefundMethod;
 	status: RefundStatus;
 	reason: string | null;
+	/** 1.5.0 — the return this refund is for. */
+	returnId?: number | null;
+	createdAt?: string;
 	expectedBy: string | null;
 	completedAt: string | null;
+	/** The bank's / gateway's tracking number. */
 	referenceId: string | null;
+	/** 1.5.0 — the note of the last status change; the shopper sees it too. */
+	statusNote?: string | null;
 };
 
 export type ReturnRequest = {
@@ -203,9 +216,31 @@ export type ReturnRequest = {
 	media: MediaAsset[];
 	shippingPaidBy: ShippingPaidBy | null;
 	instructions: string | null;
+	refundMethod?: RefundMethod;
+	/** Only for `REJECTED`. */
+	rejectionReason?: string | null;
+	/** Kiva collects the parcel (`PICKUP_SCHEDULED`); `null` when the shopper sends it. */
+	pickup?: ReturnPickup | null;
 	refund: Refund | null;
 	createdAt: string;
 	decidedAt: string | null;
+	receivedAt?: string | null;
+	closedAt?: string | null;
+	/** Only for `CLOSED`. */
+	closeReason?: string | null;
+};
+
+export type ReturnPickup = { carrier: ShippingMethodCode; carrierName: string; scheduledFor: string | null; trackingCode: string | null; note: string | null };
+export type ReturnReceipt = { items: { orderItemId: number; receivedQuantity: number; restockQuantity: number }[]; note: string | null };
+
+/** 1.5.0 `AdminReturnRequest` — a return in the panel: the shopper, the IBAN, the warehouse receipt and the next steps. */
+export type AdminReturnRequest = ReturnRequest & {
+	customer: { id: number; fullName: string | null; phone: string };
+	/** For `refundMethod = BANK_TRANSFER`, else `null`. */
+	iban: string | null;
+	receipt: ReturnReceipt | null;
+	/** What may happen next (contract §4); `REFUNDED` = «ثبت استرداد با returnId». */
+	allowedTransitions: ReturnStatus[];
 };
 
 export type AdminNote = { id: number; text: string; author: string; createdAt: string };
@@ -230,7 +265,7 @@ export type AdminOrder = {
 	timeline: OrderEvent[];
 	customerNote: string | null;
 	gift: { wrap: boolean; message: string } | null;
-	returns: ReturnRequest[];
+	returns: AdminReturnRequest[];
 	// admin extras
 	customer: { id: number; fullName: string; phone: string; ordersCount: number };
 	shipmentGroup: { code: string; orderCodes: OrderCode[]; releaseAt: string } | null;
@@ -247,3 +282,8 @@ export type SendMediaPayload = { manual?: boolean; channelOverride?: PhotoMessen
 export type ShipmentPayload = { carrier: ShippingMethodCode; trackingCode: string; shippedAt?: string | null; showInDailyList?: boolean };
 export type RefundPayload = { amount: Money; reason: string; method?: RefundMethod; returnId?: number | null };
 export type ReturnDecisionPayload = { approve: boolean; shippingPaidBy?: ShippingPaidBy; instructions?: string; rejectionReason?: string | null };
+export type ChangeRequestResolutionPayload = { decision: ChangeRequestDecision; variantId?: number | null; note?: string | null; notifyCustomer?: boolean };
+export type RefundUpdatePayload = { status: Exclude<RefundStatus, "PENDING">; referenceId?: string | null; note?: string | null };
+export type ReturnPickupPayload = { carrier: ShippingMethodCode; scheduledFor?: string | null; trackingCode?: string | null; note?: string | null; notifyCustomer?: boolean };
+export type ReturnReceiptPayload = ReturnReceipt;
+export type ReturnClosePayload = { reason: string; notifyCustomer?: boolean };

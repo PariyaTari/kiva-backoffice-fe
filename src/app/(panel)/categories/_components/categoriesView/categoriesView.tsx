@@ -14,7 +14,7 @@ import PageHead from "@/app/_components/panel/pageHead/pageHead";
 import Badge from "@/app/_components/ui/badge/badge";
 import Button from "@/app/_components/ui/button/button";
 import { toast } from "@/store/notification.store";
-import { Category } from "@/types/catalog.type";
+import { AdminCategory } from "@/types/catalog.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
 import { BAG_TYPE, labelOf } from "@/utils/labels";
@@ -26,8 +26,8 @@ import CategoryModal from "../categoryModal/categoryModal";
 /** `/categories` — the catalogue's categories (FEATURES §2.1): order, menu visibility, icon, image, SEO. */
 export default function CategoriesView() {
 	const queryClient = useQueryClient();
-	const [editing, setEditing] = useState<{ category: Category | null } | null>(null);
-	const [removing, setRemoving] = useState<Category | null>(null);
+	const [editing, setEditing] = useState<{ category: AdminCategory | null } | null>(null);
+	const [removing, setRemoving] = useState<AdminCategory | null>(null);
 
 	const categories = useQuery({
 		queryKey: ["taxonomy", "adminCategories"],
@@ -36,7 +36,7 @@ export default function CategoriesView() {
 	});
 
 	const remove = useMutation({
-		mutationFn: (c: Category) => withMappedError(() => CategoriesEndpoints.remove(c.id)),
+		mutationFn: (c: AdminCategory) => withMappedError(() => CategoriesEndpoints.remove(c.id)),
 		meta: { showNotification: true },
 		onSuccess: (_, c) => {
 			toast(`دسته‌ی «${c.name}» حذف شد`, { icon: "check" });
@@ -45,7 +45,7 @@ export default function CategoriesView() {
 		},
 	});
 
-	const columns: Column<Category>[] = [
+	const columns: Column<AdminCategory>[] = [
 		{ key: "order", title: "ترتیب", className: "nowrap", width: 60, render: (c) => toPersianDigits(c.sortOrder) },
 		{
 			key: "name",

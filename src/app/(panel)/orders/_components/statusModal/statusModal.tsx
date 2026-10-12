@@ -20,9 +20,7 @@ import { isStaleOrderError } from "../../_utils/apiError";
 const EFFECT: Partial<Record<OrderStatus, string>> = {
 	CANCELLED: "سفارش لغو می‌شود؛ اگر پرداخت شده، مبلغ برای برگشت به کارت ثبت می‌شود.",
 	DELIVERED: "پیامک «تحویل شد» با درخواست ثبت نظر برای مشتری می‌رود (اگر روشن باشد).",
-	PROCESSING: "برای عکاسی دوباره (مثلاً بعد از درخواست تغییر) به صف آماده‌سازی برمی‌گردد.",
-	RETURNED: "کالای مرجوعی به انبار رسید.",
-	REFUNDED: "وجه مرجوعی برگشت داده شد.",
+	PROCESSING: "برای عکاسی دوباره به صف آماده‌سازی برمی‌گردد.",
 };
 
 type StatusModalProps = { order: AdminOrder; open: boolean; onClose: () => void };

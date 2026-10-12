@@ -3,6 +3,8 @@ import { ReactNode, SelectHTMLAttributes } from "react";
 export type SelectOption = {
 	value: string;
 	label: string;
+	/** Shown but not choosable (e.g. a sold-out colour). */
+	disabled?: boolean;
 };
 
 export type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "size"> & {

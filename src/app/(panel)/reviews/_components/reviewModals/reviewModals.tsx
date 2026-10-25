@@ -46,17 +46,31 @@ function ReviewForm({ action, onClose }: { action: NonNullable<ReviewAction>; on
 			queryClient.invalidateQueries({ queryKey: ["reviews"] });
 			onClose();
 		},
+		// the review moved meanwhile, or (approving a rejected one) its author has another live review of the product — the toast says why
+		onError: (e) => {
+			if (e.code !== "INVALID_STATUS_TRANSITION" && e.code !== "REVIEW_ALREADY_EXISTS") return;
+			queryClient.invalidateQueries({ queryKey: ["reviews"] });
+			onClose();
+		},
 	});
 
 	const server = fieldErrorsOf(run.error);
+	const typedReply = reply.trim();
 	const local =
-		kind === "reject" && !reason.trim() ? "دلیل رد را بنویس." : kind === "reply" && reply.trim().length < 2 ? "پاسخ حداقل ۲ حرف." : null;
+		kind === "reject" && reason.trim().length < 3
+			? "دلیل رد را بنویس (دست‌کم ۳ حرف)."
+			: (kind === "reply" || (kind === "approve" && typedReply)) && typedReply.length < 2
+				? "پاسخ حداقل ۲ حرف."
+				: null;
 
 	return (
 		<>
-			<ModalHead icon={kind === "reject" ? "ban" : kind === "approve" ? "check" : "chat"} tone={kind === "reject" ? "danger" : "default"} title={TITLE[kind]} subtitle={`${review.authorName} · ${review.product?.name ?? ""}`} />
+			<ModalHead icon={kind === "reject" ? "ban" : kind === "approve" ? "check" : "chat"} tone={kind === "reject" ? "danger" : "default"} title={TITLE[kind]} subtitle={review.authorName} />
 			<div className="m-body">
-				<p className="note">«{review.text}»</p>
+				<p className="note" style={{ whiteSpace: "pre-line" }}>
+					«{review.text}»
+				</p>
+				{kind === "reject" && review.status === "APPROVED" && <p className="note cream">این نظر الان در سایت است؛ با رد از سایت برداشته می‌شود و امتیاز محصول دوباره حساب می‌شود.</p>}
 				{kind === "reject" ? (
 					<Textarea
 						label="دلیل رد"

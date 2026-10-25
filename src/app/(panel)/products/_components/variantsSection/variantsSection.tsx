@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Icon } from "@/app/_components/icon/icons";
 import ConfirmModal from "@/app/_components/panel/confirmModal/confirmModal";
@@ -22,8 +23,14 @@ import VariantModal from "../variantModal/variantModal";
 
 const LOW = 5;
 
-/** The colours of a product (FEATURES §2.4 «ورینت‌ها»): exact stock, sales, «موجود شد» subscribers and every per-colour action. */
+/**
+ * The colours of a product (FEATURES §2.4 «ورینت‌ها»): exact stock, sales, «موجود شد» subscribers and every per-colour
+ * action. An archived product's colours can't be added or edited any more (`PRODUCT_ARCHIVED`); its stock still can.
+ */
 export default function VariantsSection({ product }: { product: AdminProduct }) {
+	const archived = product.status === "ARCHIVED";
+	// the last active colour of a published product can't go (`LAST_ACTIVE_VARIANT`)
+	const lastActive = product.status === "ACTIVE" && product.adminVariants.filter((v) => v.isActive).length === 1;
 	const queryClient = useQueryClient();
 	const [editing, setEditing] = useState<{ variant: AdminVariant | null } | null>(null);
 	const [stockOf, setStockOf] = useState<StockTarget | null>(null);
@@ -87,7 +94,14 @@ export default function VariantsSection({ product }: { product: AdminProduct }) 
 			key: "alerts",
 			title: "منتظر «موجود شد»",
 			className: "nowrap",
-			render: (v) => (v.stockAlertSubscribers ? <Badge tone="WARN">{toPersianDigits(v.stockAlertSubscribers)} نفر</Badge> : <span className="muted">—</span>),
+			render: (v) =>
+				v.stockAlertSubscribers ? (
+					<Link href={`/stock-alerts?product=${product.id}&stock=all`} title="صف «موجود شد خبرم کن»">
+						<Badge tone="WARN">{toPersianDigits(v.stockAlertSubscribers)} نفر</Badge>
+					</Link>
+				) : (
+					<span className="muted">—</span>
+				),
 		},
 		{
 			key: "flags",
@@ -121,11 +135,20 @@ export default function VariantsSection({ product }: { product: AdminProduct }) 
 					<button type="button" className="icon-btn" title="تاریخچه‌ی موجودی" aria-label="تاریخچه‌ی موجودی" onClick={() => setHistoryOf(v)}>
 						<Icon name="clock" />
 					</button>
-					<button type="button" className="icon-btn" title="ویرایش" aria-label="ویرایش" onClick={() => setEditing({ variant: v })}>
-						<Icon name="edit" />
-					</button>
-					{v.isActive && (
-						<button type="button" className="icon-btn del" title="غیرفعال کردن" aria-label="غیرفعال کردن" onClick={() => setDeactivating(v)}>
+					{!archived && (
+						<button type="button" className="icon-btn" title="ویرایش" aria-label="ویرایش" onClick={() => setEditing({ variant: v })}>
+							<Icon name="edit" />
+						</button>
+					)}
+					{!archived && v.isActive && (
+						<button
+							type="button"
+							className="icon-btn del"
+							title={lastActive ? "آخرین رنگ فعال محصول منتشرشده؛ اول محصول را از انتشار دربیاور" : "غیرفعال کردن"}
+							aria-label="غیرفعال کردن"
+							disabled={lastActive}
+							onClick={() => setDeactivating(v)}
+						>
 							<Icon name="ban" />
 						</button>
 					)}
@@ -141,11 +164,13 @@ export default function VariantsSection({ product }: { product: AdminProduct }) 
 					<h1 style={{ fontSize: 18 }}>رنگ‌ها و موجودی</h1>
 					<p>هر رنگ SKU، قیمت، موجودی و گالری خودش را دارد. موجودی فقط با «تغییر موجودی» و ثبت دلیل عوض می‌شود.</p>
 				</div>
-				<div className="acts">
-					<Button size="sm" variant="soft" onClick={() => setEditing({ variant: null })} iconStart={<Icon name="plus" />}>
-						رنگ جدید
-					</Button>
-				</div>
+				{!archived && (
+					<div className="acts">
+						<Button size="sm" variant="soft" onClick={() => setEditing({ variant: null })} iconStart={<Icon name="plus" />}>
+							رنگ جدید
+						</Button>
+					</div>
+				)}
 			</div>
 			<DataTable caption="رنگ‌ها" columns={columns} rows={product.adminVariants} rowKey={(v) => v.id} empty={<TableEmpty icon="palette" title="هنوز رنگی ندارد" text="بدون رنگ فعال، محصول منتشر نمی‌شود." />} />
 
@@ -165,7 +190,11 @@ export default function VariantsSection({ product }: { product: AdminProduct }) 
 				tone="danger"
 				icon="ban"
 				title="غیرفعال کردن رنگ"
-				text={deactivating ? `رنگ ${deactivating.color.name} دیگر در سایت دیده نمی‌شود؛ سفارش‌های قبلی سالم می‌مانند.` : undefined}
+				text={
+					deactivating
+						? `رنگ ${deactivating.color.name} دیگر در سایت دیده نمی‌شود؛ سفارش‌های قبلی سالم می‌مانند${deactivating.isDefault ? " و رنگ فعال بعدی پیش‌فرض می‌شود" : ""}.`
+						: undefined
+				}
 				confirmLabel="غیرفعال کن"
 				loading={deactivate.isPending}
 				onConfirm={() => deactivating && deactivate.mutate(deactivating)}

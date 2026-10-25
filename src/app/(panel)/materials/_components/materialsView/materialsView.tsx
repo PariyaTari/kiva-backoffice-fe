@@ -23,7 +23,7 @@ import { toast } from "@/store/notification.store";
 import { Material, MaterialFamily, MaterialUpsertRequest } from "@/types/catalog.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
-import { fieldErrorsOf } from "@/utils/fieldErrors";
+import { fieldErrorsWith } from "@/utils/fieldErrors";
 import { labelOf, MATERIAL_FAMILY, optionsOf } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 
@@ -160,20 +160,24 @@ function MaterialForm({ material, onClose }: { material: Material | null; onClos
 		},
 	});
 
-	const local = { name: !name.trim() ? "نام را بنویس." : null, slug: !SLUG.test(slug) ? "حروف کوچک لاتین، رقم و خط تیره." : null, family: !family ? "خانواده را انتخاب کن." : null };
-	const server = fieldErrorsOf(save.error);
+	const local = {
+		name: !name.trim() ? "نام را بنویس." : name.length > 120 ? "حداکثر ۱۲۰ حرف." : null,
+		slug: !SLUG.test(slug) || slug.length > 100 ? "حروف کوچک لاتین، رقم و خط تیره." : null,
+		family: !family ? "خانواده را انتخاب کن." : null,
+	};
+	const server = fieldErrorsWith(save.error, { DUPLICATE_SLUG: "slug" });
 
 	return (
 		<>
 			<ModalHead icon="leaf" title={material ? `ویرایش «${material.name}»` : "متریال جدید"} subtitle={material?.productCount ? `${toPersianDigits(material.productCount)} محصول؛ نام تازه در جستجوی آن‌ها هم می‌نشیند.` : undefined} />
 			<div className="m-body">
 				<div className="form-grid">
-					<Input label="نام" value={name} onChange={(e) => setName(e.target.value)} error={(touched && local.name) || server.name} placeholder="چرم طبیعی گاوی" />
+					<Input label="نام" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} error={(touched && local.name) || server.name} placeholder="چرم طبیعی گاوی" />
 					<Input label="slug" direction="ltr" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))} error={(touched && local.slug) || server.slug} placeholder="genuine-cow-leather" />
 					<Select label="خانواده" placeholder="انتخاب" value={family} onChange={(e) => setFamily(e.target.value as MaterialFamily)} options={optionsOf(MATERIAL_FAMILY)} error={(touched && local.family) || server.family} wrapperClassName="full" />
 				</div>
-				<Textarea label="توضیح" labelNote="اختیاری" value={description} onChange={(e) => setDescription(e.target.value)} style={{ minHeight: 70 }} />
-				<ChipsInput label="نگهداری" labelNote="هر مورد یک چیپ" value={care} onChange={setCare} />
+				<Textarea label="توضیح" labelNote="اختیاری" maxLength={1000} value={description} onChange={(e) => setDescription(e.target.value)} error={server.description} style={{ minHeight: 70 }} />
+				<ChipsInput label="نگهداری" labelNote="هر مورد یک چیپ، حداکثر ۱۰" max={10} maxLength={200} value={care} onChange={setCare} error={server.careInstructions} />
 			</div>
 			<div className="m-foot">
 				<Button variant="white" onClick={onClose} disabled={save.isPending}>

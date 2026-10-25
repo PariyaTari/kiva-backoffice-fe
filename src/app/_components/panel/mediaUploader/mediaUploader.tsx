@@ -12,10 +12,38 @@ import { withMappedError } from "@/utils/withMappedError";
 
 type Pending = { key: string; name: string; preview: string | null; video: boolean; progress: number; error: string | null; abort: AbortController };
 
+/**
+ * What `POST /admin/media` takes (1.12.0) — the type is read from the content, so this is only the friendly first
+ * check: jpeg/png/webp for every purpose; mp4 (H.264) for product, blog and pre-shipment (mov too); no video for
+ * category, banner and testimonial (`415 UPLOAD_TYPE_NOT_ALLOWED`). SVG, GIF and HEIC are refused everywhere.
+ */
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const VIDEO_TYPES: Record<MediaPurpose, string[]> = {
+	PRODUCT: ["video/mp4"],
+	BLOG: ["video/mp4"],
+	PRE_SHIPMENT: ["video/mp4", "video/quicktime"],
+	CATEGORY: [],
+	BANNER: [],
+	TESTIMONIAL: [],
+};
+const MB = 1024 * 1024;
+/** `413 UPLOAD_TOO_LARGE` above these. */
+const MAX_BYTES = { image: 15 * MB, video: 200 * MB };
+
+/** Why this file won't be accepted, said before uploading it — or `null` (an unknown browser type is left to the server). */
+function fileProblem(file: File, purpose: MediaPurpose): string | null {
+	const video = file.type.startsWith("video/");
+	if (file.type && !IMAGE_TYPES.includes(file.type) && !VIDEO_TYPES[purpose].includes(file.type))
+		return VIDEO_TYPES[purpose].length ? "فقط عکس jpeg، png یا webp و ویدیوی mp4." : "این‌جا فقط عکس jpeg، png یا webp پذیرفته می‌شود.";
+	if (file.size > (video ? MAX_BYTES.video : MAX_BYTES.image)) return video ? "ویدیو حداکثر ۲۰۰ مگابایت." : "عکس حداکثر ۱۵ مگابایت.";
+	return null;
+}
+
 type MediaUploaderProps = {
 	purpose: MediaPurpose;
 	/** One finished asset — the parent adds it to its own list (with view, order item, …). */
 	onUploaded: (asset: MediaAsset) => void;
+	/** Default: what the purpose allows (above). */
 	accept?: string;
 	multiple?: boolean;
 	/** Short line under the drop zone title. */
@@ -28,7 +56,7 @@ type MediaUploaderProps = {
  * progress and a cancel; a finished file leaves the uploader as a `MediaAsset` (`onUploaded`) and the parent
  * shows it. A failed file stays here with the server's reason until it is dismissed.
  */
-export default function MediaUploader({ purpose, onUploaded, accept = "image/*", multiple = true, hint, disabled = false }: MediaUploaderProps) {
+export default function MediaUploader({ purpose, onUploaded, accept, multiple = true, hint, disabled = false }: MediaUploaderProps) {
 	const input = useRef<HTMLInputElement>(null);
 	const [pending, setPending] = useState<Pending[]>([]);
 	const [drag, setDrag] = useState(false);
@@ -52,7 +80,8 @@ export default function MediaUploader({ purpose, onUploaded, accept = "image/*",
 		// the reason stays on the tile (type / size / network) — it is the answer for that file
 		onError: (e, { key }) => {
 			if (e.description === "canceled") drop(key);
-			else patch(key, { error: e.description });
+			// an iPhone's HEVC video (`415`, `meta.hint = "H264"`)
+			else patch(key, { error: e.meta?.hint === "H264" ? `${e.description} (آیفون: دوربین را روی «Most Compatible» بگذار.)` : e.description });
 		},
 	});
 
@@ -67,12 +96,13 @@ export default function MediaUploader({ purpose, onUploaded, accept = "image/*",
 				preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
 				video: file.type.startsWith("video/"),
 				progress: 0,
-				error: null,
+				// a file the server would refuse anyway stays as a failed tile and is not sent
+				error: fileProblem(file, purpose),
 				abort: new AbortController(),
 			} satisfies Pending,
 		}));
 		setPending((list) => [...list, ...next.map((n) => n.tile)]);
-		next.forEach(({ file, tile }) => upload.mutate({ file, key: tile.key, signal: tile.abort.signal }));
+		next.forEach(({ file, tile }) => !tile.error && upload.mutate({ file, key: tile.key, signal: tile.abort.signal }));
 		if (input.current) input.current.value = "";
 	};
 
@@ -94,7 +124,14 @@ export default function MediaUploader({ purpose, onUploaded, accept = "image/*",
 				onDrop={onDrop}
 				aria-disabled={disabled || undefined}
 			>
-				<input ref={input} type="file" accept={accept} multiple={multiple} disabled={disabled} onChange={(e) => add(e.target.files)} />
+				<input
+					ref={input}
+					type="file"
+					accept={accept ?? [...IMAGE_TYPES, ...VIDEO_TYPES[purpose]].join(",")}
+					multiple={multiple}
+					disabled={disabled}
+					onChange={(e) => add(e.target.files)}
+				/>
 				<Icon name="upload" />
 				<b>{multiple ? "فایل‌ها رو بکش این‌جا یا انتخاب کن" : "فایل رو بکش این‌جا یا انتخاب کن"}</b>
 				{hint && <span>{hint}</span>}

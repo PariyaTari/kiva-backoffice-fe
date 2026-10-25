@@ -18,10 +18,10 @@ import { ShippingMethodCode } from "@/types/common.type";
 import { ResultError } from "@/types/result";
 import { toPersianDigits } from "@/utils/digits";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
-import { optionsOf, SHIPPING_METHOD } from "@/utils/labels";
+import { SHIPPING_METHOD } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 import { ReturnsEndpoints } from "../../_api/returnsEndpoints";
-import { isAlreadyDecidedError } from "../../_utils/apiError";
+import { isStaleReturnError } from "../../_utils/apiError";
 
 type StepModalProps = { item: AdminReturnRequest | null; onClose: () => void };
 
@@ -35,9 +35,9 @@ function useStepDone(onClose: () => void) {
 			queryClient.invalidateQueries({ queryKey: ["orders", "detail", r.orderCode] });
 			onClose();
 		},
-		// someone moved the return meanwhile — the toast says why; the list re-reads its real state
+		// someone moved the return meanwhile, or its refund is still open — the toast says why; the list re-reads its real state
 		stale: (e: ResultError) => {
-			if (isAlreadyDecidedError(e)) {
+			if (isStaleReturnError(e)) {
 				queryClient.invalidateQueries({ queryKey: ["returns"] });
 				onClose();
 			}
@@ -45,7 +45,10 @@ function useStepDone(onClose: () => void) {
 	};
 }
 
-/** `PUT /admin/returns/{id}/pickup` — Kiva sends a courier for the parcel; again = new time / tracking code. */
+/** Who collects a return: a courier (`COURIER`) is not offered (`400 SHIPPING_METHOD_NOT_SUPPORTED`). */
+const PICKUP_CARRIERS: { value: ShippingMethodCode; label: string }[] = (["TIPAX", "POST"] as const).map((value) => ({ value, label: SHIPPING_METHOD[value] }));
+
+/** `PUT /admin/returns/{id}/pickup` — Kiva sends a courier for the parcel; again = the whole pickup replaced. */
 export function PickupModal({ item, onClose }: StepModalProps) {
 	return (
 		<Modal open={!!item} onClose={onClose} width={500}>
@@ -56,7 +59,7 @@ export function PickupModal({ item, onClose }: StepModalProps) {
 
 function PickupForm({ item, onClose }: { item: AdminReturnRequest; onClose: () => void }) {
 	const { done, stale } = useStepDone(onClose);
-	const [carrier, setCarrier] = useState<ShippingMethodCode>(item.pickup?.carrier ?? "TIPAX");
+	const [carrier, setCarrier] = useState<ShippingMethodCode>(item.pickup?.carrier === "POST" ? "POST" : "TIPAX");
 	const [scheduledFor, setScheduledFor] = useState<string | null>(item.pickup?.scheduledFor ?? null);
 	const [trackingCode, setTrackingCode] = useState(item.pickup?.trackingCode ?? "");
 	const [note, setNote] = useState(item.pickup?.note ?? "");
@@ -77,15 +80,16 @@ function PickupForm({ item, onClose }: { item: AdminReturnRequest; onClose: () =
 		<>
 			<ModalHead icon="truck" title={item.pickup ? "تغییر جمع‌آوری مرسوله" : "زمان‌بندی جمع‌آوری مرسوله"} subtitle={`${item.code} — سفارش ${item.orderCode}`} />
 			<div className="m-body">
-				<Select label="حامل" value={carrier} onChange={(e) => setCarrier(e.target.value as ShippingMethodCode)} options={optionsOf(SHIPPING_METHOD)} error={errors.carrier} />
+				<Select label="حامل" value={carrier} onChange={(e) => setCarrier(e.target.value as ShippingMethodCode)} options={PICKUP_CARRIERS} error={errors.carrier} />
 				<div className="field">
 					<label>زمان مراجعه‌ی مأمور</label>
 					<JalaliDateTimeInput value={scheduledFor} onChange={setScheduledFor} defaultTime="10:00" ariaLabel="زمان مراجعه" />
-					{errors.scheduledFor && <span className="err" style={{ display: "block" }}>{errors.scheduledFor}</span>}
+					{errors.scheduledFor ? <span className="err" style={{ display: "block" }}>{errors.scheduledFor}</span> : <span className="help">از یک ساعت پیش تا ۳۰ روز بعد</span>}
 				</div>
 				<Input label="کد رهگیری" labelNote="اختیاری" direction="ltr" maxLength={40} value={trackingCode} onChange={(e) => setTrackingCode(e.target.value)} error={errors.trackingCode} />
 				<Textarea label="یادداشت برای مشتری" labelNote="اختیاری" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} error={errors.note} style={{ minHeight: 70 }} />
-				<Switch label="پیامک به مشتری" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+				<Switch label="پیامک به مشتری (کد مرجوعی و اسم حامل)" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+				{item.pickup && <p className="note">ثبت دوباره جای همه‌ی اطلاعات جمع‌آوری قبلی را می‌گیرد؛ فیلد خالی خالی می‌ماند.</p>}
 			</div>
 			<div className="m-foot">
 				<Button variant="white" onClick={onClose} disabled={schedule.isPending}>
@@ -144,23 +148,23 @@ function ReceiptForm({ item, onClose }: { item: AdminReturnRequest; onClose: () 
 								label="رسید"
 								value={rows[k].receivedQuantity}
 								onChange={(n) => patch(k, { receivedQuantity: Math.min(i.quantity, Math.max(0, n ?? 0)) })}
-								error={errors[`items[${k}].receivedQuantity`]}
+								error={errors[`items.${k}.receivedQuantity`]}
 							/>
 							<NumberInput
 								label="برگشت به فروش"
 								labelNote="سالم"
 								value={rows[k].restockQuantity}
 								onChange={(n) => patch(k, { restockQuantity: Math.max(0, n ?? 0) })}
-								error={local[k] || errors[`items[${k}].restockQuantity`]}
+								error={local[k] || errors[`items.${k}.restockQuantity`]}
 							/>
 						</div>
 					</div>
 				))}
 				<p className="note">
 					{restocked
-						? `${toPersianDigits(restocked)} عدد با دلیل «مرجوعی» به موجودی اضافه می‌شود (اگر آن رنگ ناموجود بوده، پیامک «موجود شد» هم می‌رود).`
-						: "چیزی به موجودی برنمی‌گردد."}{" "}
-					قدم بعد: استرداد (مدیر کل) یا بستن بدون استرداد.
+						? `${toPersianDigits(restocked)} عدد با دلیل «مرجوعی» به موجودی اضافه می‌شود (اگر آن رنگ ناموجود بوده، مشترکین «موجود شد خبرم کن» تا چند دقیقه بعد پیامک می‌گیرند).`
+						: "چیزی به موجودی برنمی‌گردد (بسته‌ی خالی هم ثبت می‌شود)."}{" "}
+					این ثبت به مشتری پیامک نمی‌دهد. قدم بعد: استرداد (مدیر کل) یا بستن بدون استرداد.
 				</p>
 				<Textarea label="نتیجه‌ی بازبینی" labelNote="داخلی" maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} error={errors.note} style={{ minHeight: 70 }} />
 			</div>
@@ -218,6 +222,7 @@ function CloseForm({ item, onClose }: StepModalProps) {
 		>
 			<Textarea
 				label="دلیل (برای مشتری)"
+				labelNote="در جزئیات مرجوعی؛ پیامک فقط کد مرجوعی را دارد"
 				maxLength={500}
 				value={reason}
 				onChange={(e) => setReason(e.target.value)}

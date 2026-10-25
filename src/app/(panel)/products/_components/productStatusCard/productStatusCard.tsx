@@ -18,9 +18,22 @@ import { ProductsEndpoints } from "../../_api/productsEndpoints";
 
 const DONE: Record<ProductStatus, string> = { ACTIVE: "محصول منتشر شد", DRAFT: "محصول پیش‌نویس شد", ARCHIVED: "محصول آرشیو شد" };
 
+/** A publication can be scheduled at most this far ahead (`PUBLISH_AT_TOO_FAR`). */
+const MAX_SCHEDULE_MS = 365 * 864e5;
+
+/** Why the chosen publication time can't be scheduled, or `null`. */
+function scheduleProblem(at: string | null) {
+	if (!at) return null;
+	const t = Date.parse(at);
+	if (t <= Date.now()) return "زمان گذشته است؛ برای انتشار همین الان «انتشار» را بزن.";
+	if (t > Date.now() + MAX_SCHEDULE_MS) return "حداکثر یک سال بعد.";
+	return null;
+}
+
 /**
- * Publication of a product (`PATCH …/status`): publish now or at a time, back to draft, archive. Only «منتشرشده»
- * shows on the storefront. Plus the panel's numbers for it (views, conversion, sales).
+ * Publication of a product (`PATCH …/status`, 1.12.0 table): publish now or at a time (a draft only), cancel the
+ * schedule, back to draft, archive. Archiving is final — an archived product doesn't come back. Publishing needs an
+ * active colour (`NO_ACTIVE_VARIANT`). Only «منتشرشده» shows on the storefront. Plus the panel's numbers for it.
  */
 export default function ProductStatusCard({ product }: { product: AdminProduct }) {
 	const queryClient = useQueryClient();
@@ -39,6 +52,8 @@ export default function ProductStatusCard({ product }: { product: AdminProduct }
 		},
 	});
 	const busy = change.isPending;
+	const scheduleError = scheduleProblem(publishAt);
+	const activeColors = product.adminVariants.filter((v) => v.isActive).length;
 
 	return (
 		<section className="icard">
@@ -54,12 +69,14 @@ export default function ProductStatusCard({ product }: { product: AdminProduct }
 					{product.status === "ACTIVE" ? `در سایت از ${formatDateTime(product.publishedAt)}` : product.status === "DRAFT" ? "در سایت دیده نمی‌شود." : "آرشیو شده؛ سفارش‌های قبلی سالم‌اند."}
 				</p>
 
+				{product.status === "DRAFT" && !activeColors && <p className="note">بدون رنگ فعال منتشر نمی‌شود؛ اول یک رنگ اضافه یا فعال کن.</p>}
 				{product.status === "DRAFT" &&
 					(scheduling ? (
 						<div className="stack" style={{ gap: 8 }}>
 							<JalaliDateTimeInput value={publishAt} onChange={setPublishAt} ariaLabel="زمان انتشار" />
+							{scheduleError && <small style={{ color: "var(--danger)" }}>{scheduleError}</small>}
 							<div style={{ display: "flex", gap: 6 }}>
-								<Button size="sm" disabled={!publishAt} isLoading={busy} onClick={() => change.mutate({ status: "ACTIVE", at: publishAt })}>
+								<Button size="sm" disabled={!publishAt || !!scheduleError || !activeColors} isLoading={busy} onClick={() => change.mutate({ status: "ACTIVE", at: publishAt })}>
 									ثبت زمان
 								</Button>
 								<Button size="sm" variant="white" onClick={() => setScheduling(false)}>
@@ -69,12 +86,17 @@ export default function ProductStatusCard({ product }: { product: AdminProduct }
 						</div>
 					) : (
 						<div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-							<Button size="sm" isLoading={busy} onClick={() => change.mutate({ status: "ACTIVE" })} iconStart={<Icon name="send" />}>
+							<Button size="sm" isLoading={busy} disabled={!activeColors} onClick={() => change.mutate({ status: "ACTIVE" })} iconStart={<Icon name="send" />}>
 								انتشار
 							</Button>
-							<Button size="sm" variant="white" onClick={() => setScheduling(true)} iconStart={<Icon name="cal" />}>
-								زمان‌بندی
+							<Button size="sm" variant="white" disabled={!activeColors} onClick={() => setScheduling(true)} iconStart={<Icon name="cal" />}>
+								{product.publishAt ? "تغییر زمان" : "زمان‌بندی"}
 							</Button>
+							{product.publishAt && (
+								<Button size="sm" variant="white" isLoading={busy} onClick={() => change.mutate({ status: "DRAFT" })}>
+									لغو زمان‌بندی
+								</Button>
+							)}
 						</div>
 					))}
 				{product.status === "ACTIVE" && (
@@ -88,9 +110,9 @@ export default function ProductStatusCard({ product }: { product: AdminProduct }
 					</div>
 				)}
 				{product.status === "ARCHIVED" ? (
-					<Button size="sm" variant="white" isLoading={busy} onClick={() => change.mutate({ status: "DRAFT" })}>
-						بازگردانی به پیش‌نویس
-					</Button>
+					<p className="muted" style={{ fontSize: 12.5 }}>
+						آرشیو برگشت ندارد؛ برای فروش دوباره، محصول تازه بساز.
+					</p>
 				) : (
 					<button type="button" className="btn btn-link" style={{ color: "var(--danger)", justifySelf: "start" }} onClick={() => setConfirmArchive(true)}>
 						<Icon name="trash" /> آرشیو محصول
@@ -100,9 +122,9 @@ export default function ProductStatusCard({ product }: { product: AdminProduct }
 				<div className="divider" style={{ margin: "4px 0" }} />
 				<dl className="kv">
 					<dt>بازدید</dt>
-					<dd>{toPersianDigits(product.viewsCount)}</dd>
+					<dd>{product.viewsCount == null ? "—" : toPersianDigits(product.viewsCount)}</dd>
 					<dt>نرخ تبدیل</dt>
-					<dd>{toPersianDigits(product.conversionRate)}٪</dd>
+					<dd>{product.conversionRate == null ? "—" : `${toPersianDigits(product.conversionRate)}٪`}</dd>
 					<dt>فروش</dt>
 					<dd>{toPersianDigits(product.soldCount ?? 0)}</dd>
 					<dt>امتیاز</dt>
@@ -121,7 +143,7 @@ export default function ProductStatusCard({ product }: { product: AdminProduct }
 				tone="danger"
 				icon="trash"
 				title="آرشیو محصول"
-				text={`«${product.name}» از سایت برداشته می‌شود؛ سفارش‌های قبلی سالم می‌مانند و هر وقت خواستی برمی‌گردد.`}
+				text={`«${product.name}» از سایت برداشته می‌شود و دیگر برنمی‌گردد (ویرایش هم ندارد)؛ سفارش‌های قبلی و رزروهای باز سالم می‌مانند و در سبدها «غیرقابل خرید» می‌شود.`}
 				confirmLabel="آرشیو کن"
 				loading={busy}
 				onConfirm={() => change.mutate({ status: "ARCHIVED" })}

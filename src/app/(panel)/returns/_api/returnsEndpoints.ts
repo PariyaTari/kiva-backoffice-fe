@@ -1,14 +1,19 @@
 import { httpClient } from "@/httpClient/HttpClient";
 import { PageMeta } from "@/types/pageinate";
-import { AdminReturnRequest, ReturnClosePayload, ReturnDecisionPayload, ReturnPickupPayload, ReturnReceiptPayload, ReturnStatus } from "@/types/order.type";
+import { AdminReturnRequest, AdminReturnSort, ReturnClosePayload, ReturnDecisionPayload, ReturnPickupPayload, ReturnReceiptPayload, ReturnStatus } from "@/types/order.type";
 
 /**
  * `/admin/returns*` (ADMIN, OPERATOR) — pure request functions. The cycle (contract §4): decision → (pickup) →
  * receipt at the warehouse → refund with `returnId` (ADMIN, on the order) or close without one.
  */
 export const ReturnsEndpoints = {
-	getReturns: async (status: ReturnStatus | "", page: number, size: number) => {
-		const res = await httpClient.call<{ items: AdminReturnRequest[]; meta: PageMeta }>({ method: "GET", url: "admin/returns", params: { status: status || undefined, page, size } });
+	/** `sort`: `newest` (default) or `oldest` by request time — parcels that never arrived surface first (no auto-close). */
+	getReturns: async (status: ReturnStatus | "", sort: AdminReturnSort, page: number, size: number) => {
+		const res = await httpClient.call<{ items: AdminReturnRequest[]; meta: PageMeta }>({
+			method: "GET",
+			url: "admin/returns",
+			params: { status: status || undefined, sort: sort === "oldest" ? sort : undefined, page, size },
+		});
 		return res.data;
 	},
 
@@ -30,7 +35,10 @@ export const ReturnsEndpoints = {
 		return res.data;
 	},
 
-	/** Ends a return without a refund (→ `CLOSED`): it never arrived, or the inspection failed. The order goes back to `DELIVERED`. */
+	/**
+	 * Ends a return without a refund (→ `CLOSED`): it never arrived, or the inspection failed. The order goes back to
+	 * `DELIVERED`. Not while a refund of it is still open (`422 RETURN_REFUND_OPEN`).
+	 */
 	close: async (id: number, payload: ReturnClosePayload) => {
 		const res = await httpClient.call<AdminReturnRequest>({ method: "POST", url: `admin/returns/${id}/close`, data: payload });
 		return res.data;

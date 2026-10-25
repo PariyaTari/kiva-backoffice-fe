@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import classNames from "classnames";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PANEL_ERRORS as ERROR_BEHAVIOUR } from "@/app/(panel)/_utils/apiError";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
@@ -12,10 +13,12 @@ import DataTable, { TableEmpty } from "@/app/_components/panel/dataTable/dataTab
 import { Column } from "@/app/_components/panel/dataTable/dataTable.type";
 import PageHead from "@/app/_components/panel/pageHead/pageHead";
 import TableFooter from "@/app/_components/panel/pager/pager";
+import Badge from "@/app/_components/ui/badge/badge";
 import Button from "@/app/_components/ui/button/button";
 import { useTableState } from "@/hooks/useTableState";
+import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { toast } from "@/store/notification.store";
-import { Testimonial } from "@/types/marketing.type";
+import { AdminTestimonial } from "@/types/marketing.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
 import { formatDate } from "@/utils/format";
@@ -23,22 +26,30 @@ import { withMappedError } from "@/utils/withMappedError";
 import { TestimonialsEndpoints } from "../../_api/testimonialsEndpoints";
 import TestimonialModal from "../testimonialModal/testimonialModal";
 
-/** `/testimonials` — the messages of «مشتری‌ها چی می‌گن»; only published ones can be listed (FEATURES §7 #3). */
+const TABS = [
+	{ key: "all", label: "همه", published: null },
+	{ key: "published", label: "منتشرشده", published: true },
+	{ key: "hidden", label: "منتشرنشده", published: false },
+] as const;
+
+/** `/testimonials` — the messages of «مشتری‌ها چی می‌گن», published or not, by their order on the site then newest. */
 export default function TestimonialsView() {
 	const queryClient = useQueryClient();
-	const { page, setPage, pageSize, setPageSize } = useTableState();
-	const [editing, setEditing] = useState<{ testimonial: Testimonial | null } | null>(null);
-	const [removing, setRemoving] = useState<Testimonial | null>(null);
+	const [f, setF] = useUrlFilters({ tab: "all" });
+	const tab = TABS.find((t) => t.key === f.tab) ?? TABS[0];
+	const { page, setPage, pageSize, setPageSize } = useTableState({ resetPageOn: [tab.key] });
+	const [editing, setEditing] = useState<{ testimonial: AdminTestimonial | null } | null>(null);
+	const [removing, setRemoving] = useState<AdminTestimonial | null>(null);
 
 	const list = useQuery({
-		queryKey: ["testimonials", "list", { page, pageSize }],
-		queryFn: () => withMappedError(() => TestimonialsEndpoints.getPublished(page, pageSize)),
+		queryKey: ["testimonials", "list", { published: tab.published, page, pageSize }],
+		queryFn: () => withMappedError(() => TestimonialsEndpoints.getTestimonials(tab.published, page, pageSize)),
 		placeholderData: keepPreviousData,
 		meta: { showNotificationOnRefetch: true },
 	});
 
 	const remove = useMutation({
-		mutationFn: (t: Testimonial) => withMappedError(() => TestimonialsEndpoints.remove(t.id)),
+		mutationFn: (t: AdminTestimonial) => withMappedError(() => TestimonialsEndpoints.remove(t.id)),
 		meta: { showNotification: true },
 		onSuccess: () => {
 			toast("پیام رضایت حذف شد", { icon: "check" });
@@ -47,7 +58,7 @@ export default function TestimonialsView() {
 		},
 	});
 
-	const columns: Column<Testimonial>[] = [
+	const columns: Column<AdminTestimonial>[] = [
 		{
 			key: "who",
 			title: "مشتری",
@@ -57,7 +68,7 @@ export default function TestimonialsView() {
 					<MessengerIcon channel={t.source} width={22} height={22} />
 					<span>
 						<b>{t.customerName}</b>
-						<span className="sub">{t.city}</span>
+						{t.city && <span className="sub">{t.city}</span>}
 					</span>
 				</span>
 			),
@@ -79,7 +90,23 @@ export default function TestimonialsView() {
 			),
 		},
 		{ key: "rating", title: "امتیاز", className: "nowrap", render: (t) => `${toPersianDigits(t.rating)} از ۵` },
-		{ key: "at", title: "دریافت", className: "nowrap muted", render: (t) => `${formatDate(t.receivedAt)} · ${toPersianDigits(t.messageTime)}` },
+		{
+			key: "state",
+			title: "سایت",
+			className: "nowrap",
+			render: (t) => (
+				<>
+					{t.isPublished ? <Badge tone="SUCCESS">منتشرشده</Badge> : <Badge>منتشرنشده</Badge>}
+					<span className="sub">ترتیب {toPersianDigits(t.sortOrder)}</span>
+				</>
+			),
+		},
+		{
+			key: "at",
+			title: "دریافت",
+			className: "nowrap muted",
+			render: (t) => [t.receivedAt && formatDate(t.receivedAt), t.messageTime && toPersianDigits(t.messageTime)].filter(Boolean).join(" · ") || "—",
+		},
 		{
 			key: "acts",
 			title: "",
@@ -110,9 +137,13 @@ export default function TestimonialsView() {
 					</Button>
 				}
 			/>
-			<p className="note" style={{ marginBottom: 14 }}>
-				فهرست ادمین در کانترکت نیست؛ این جدول از فهرست عمومی خوانده می‌شود و پیام‌های منتشرنشده در آن دیده نمی‌شوند.
-			</p>
+			<div className="tabs bo-tabs" role="tablist">
+				{TABS.map((t) => (
+					<button key={t.key} type="button" role="tab" aria-selected={t.key === tab.key} className={classNames({ on: t.key === tab.key })} onClick={() => setF({ tab: t.key })}>
+						{t.label}
+					</button>
+				))}
+			</div>
 			{list.isLoading ? (
 				<div className="tbl-wrap">
 					<Loading />
@@ -126,7 +157,7 @@ export default function TestimonialsView() {
 					rows={list.data.items}
 					rowKey={(t) => t.id}
 					loading={list.isFetching}
-					empty={<TableEmpty icon="smile" title="پیامی منتشر نشده" />}
+					empty={<TableEmpty icon="smile" title={tab.published === false ? "پیام منتشرنشده‌ای نیست" : "پیامی نیست"} />}
 					footer={<TableFooter meta={list.data.meta} onPage={setPage} onPageSize={setPageSize} disabled={list.isFetching} />}
 				/>
 			) : null}
@@ -138,7 +169,7 @@ export default function TestimonialsView() {
 				tone="danger"
 				icon="trash"
 				title="حذف پیام رضایت"
-				text={removing ? `پیام ${removing.customerName} از ${removing.city} حذف شود؟` : undefined}
+				text={removing ? `پیام ${removing.customerName}${removing.city ? ` از ${removing.city}` : ""} حذف شود؟` : undefined}
 				confirmLabel="حذف"
 				loading={remove.isPending}
 				onConfirm={() => removing && remove.mutate(removing)}

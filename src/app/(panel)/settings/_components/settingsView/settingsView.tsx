@@ -88,10 +88,10 @@ export default function SettingsView() {
 								</span>
 							</div>
 							<div className="form-grid g4">
-								<Input label="نام" value={m.name} onChange={(e) => setAt("shippingMethods", i, { name: e.target.value })} error={errors[`shippingMethods[${i}].name`]} />
-								<MoneyInput label="هزینه" value={m.baseCost} onChange={(n) => setAt("shippingMethods", i, { baseCost: n ?? 0 })} error={errors[`shippingMethods[${i}].baseCost`]} />
+								<Input label="نام" value={m.name} onChange={(e) => setAt("shippingMethods", i, { name: e.target.value })} error={errors[`shippingMethods.${i}.name`]} />
+								<MoneyInput label="هزینه" value={m.baseCost} onChange={(n) => setAt("shippingMethods", i, { baseCost: n ?? 0 })} error={errors[`shippingMethods.${i}.baseCost`]} />
 								<NumberInput label="حداقل روز" value={m.minDays} onChange={(n) => setAt("shippingMethods", i, { minDays: n ?? 0 })} />
-								<NumberInput label="حداکثر روز" value={m.maxDays} onChange={(n) => setAt("shippingMethods", i, { maxDays: n ?? 0 })} error={errors[`shippingMethods[${i}].maxDays`]} />
+								<NumberInput label="حداکثر روز" value={m.maxDays} onChange={(n) => setAt("shippingMethods", i, { maxDays: n ?? 0 })} error={errors[`shippingMethods.${i}.maxDays`]} />
 								<Input label="توضیح" value={m.description} onChange={(e) => setAt("shippingMethods", i, { description: e.target.value })} wrapperClassName="full" />
 								<Input label="لینک رهگیری" labelNote="{code} = کد رهگیری" direction="ltr" value={m.trackingUrlTemplate} onChange={(e) => setAt("shippingMethods", i, { trackingUrlTemplate: e.target.value })} wrapperClassName="full" />
 							</div>
@@ -154,7 +154,7 @@ export default function SettingsView() {
 						<div key={i} className="row-card">
 							<div className="form-grid g4">
 								<Input label="برچسب" value={h.label} onChange={(e) => setAt("supportHours", i, { label: e.target.value })} />
-								<Input label="از" direction="ltr" value={h.from ?? ""} disabled={h.messengerOnly} onChange={(e) => setAt("supportHours", i, { from: e.target.value || null })} error={errors[`supportHours[${i}].from`]} />
+								<Input label="از" direction="ltr" value={h.from ?? ""} disabled={h.messengerOnly} onChange={(e) => setAt("supportHours", i, { from: e.target.value || null })} error={errors[`supportHours.${i}.from`]} />
 								<Input label="تا" direction="ltr" value={h.to ?? ""} disabled={h.messengerOnly} onChange={(e) => setAt("supportHours", i, { to: e.target.value || null })} />
 								<div className="field" style={{ justifyContent: "flex-end" }}>
 									<Switch label="فقط پیام‌رسان" checked={h.messengerOnly} onChange={(e) => setAt("supportHours", i, { messengerOnly: e.target.checked })} />

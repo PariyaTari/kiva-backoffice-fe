@@ -4,12 +4,10 @@ import { MessengerIcon } from "@/app/_components/icon/messengerIcon";
 import StatusTag from "@/app/_components/panel/statusTag/statusTag";
 import { AdminOrder, OrderMediaItem } from "@/types/order.type";
 import { formatDateTime, formatPhone, relativeTime } from "@/utils/format";
+import { toPersianDigits } from "@/utils/digits";
 import { CHANGE_TYPE, labelOf, MEDIA_STATUS, MEDIA_STATUS_TONE, MEDIA_VIEW } from "@/utils/labels";
+import { isPhotoStep } from "../../_utils/packing";
 import DesiredVariant from "../desiredVariant/desiredVariant";
-
-/** Statuses in which photos can still be (re)attached and sent (FEATURES §3.2 steps 2–4). */
-export const MEDIA_EDITABLE = ["PROCESSING", "RESERVED", "PHOTO_SENT", "CHANGE_REQUESTED"];
-export const MEDIA_SENDABLE = ["PROCESSING", "PHOTO_SENT", "CHANGE_REQUESTED"];
 
 type OrderMediaProps = {
 	order: AdminOrder;
@@ -36,15 +34,16 @@ export function MediaThumb({ item }: { item: OrderMediaItem }) {
 
 /**
  * «امضای کیوا» — the photos of the very bag, where they go (messenger + number), when they went, the deadline and
- * the shopper's answer (approve / change request). The operator's two steps: attach photos, send them.
+ * the shopper's answer (approve / change request). The operator's two steps (only in `PROCESSING` with the photo
+ * `WAITING`): save a draft, then send it by hand and record the sending.
  */
 export default function OrderMedia({ order, onEdit, onSend, onResolve }: OrderMediaProps) {
 	const m = order.preShipmentMediaDetail;
 	const fb = m.feedback;
 	const changedItem = fb?.orderItemId ? order.items.find((i) => i.id === fb.orderItemId) : null;
 	const res = fb?.resolution ?? null;
-	const editable = MEDIA_EDITABLE.includes(order.status);
-	const sendable = MEDIA_SENDABLE.includes(order.status) && m.items.length > 0;
+	const draft = order.draftItems ?? [];
+	const step = isPhotoStep(order);
 
 	return (
 		<section className="icard">
@@ -52,14 +51,14 @@ export default function OrderMedia({ order, onEdit, onSend, onResolve }: OrderMe
 				<Icon name="camera" /> عکس قبل از ارسال
 				<StatusTag value={m.status} labels={MEDIA_STATUS} tones={MEDIA_STATUS_TONE} />
 				<span className="acts">
-					{editable && (
+					{step && (
 						<button type="button" className="btn btn-outline btn-sm" onClick={onEdit}>
-							<Icon name="upload" /> {m.items.length ? "ویرایش عکس‌ها" : "آپلود عکس"}
+							<Icon name="upload" /> {draft.length ? "ویرایش پیش‌نویس" : "آپلود عکس"}
 						</button>
 					)}
-					{sendable && (
+					{step && !!draft.length && (
 						<button type="button" className="btn btn-primary btn-sm" onClick={onSend}>
-							<Icon name="send" /> {m.status === "WAITING" ? "ارسال برای مشتری" : "ارسال دوباره"}
+							<Icon name="send" /> ثبت ارسال برای مشتری
 						</button>
 					)}
 				</span>
@@ -68,21 +67,53 @@ export default function OrderMedia({ order, onEdit, onSend, onResolve }: OrderMe
 			<p className="muted" style={{ fontSize: 13, marginBottom: 12, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
 				<MessengerIcon channel={m.channel} width={18} height={18} />
 				{m.channelName} · <span className="ltr">{formatPhone(m.phone)}</span>
+				{m.username && (
+					<>
+						{" "}
+						· <span className="ltr">{m.username}</span>
+					</>
+				)}
 				{m.sentAt && <> · ارسال {formatDateTime(m.sentAt)}</>}
 				{m.feedbackDeadline && !fb && m.status === "SENT" && <> · مهلت پاسخ {relativeTime(m.feedbackDeadline)}</>}
 			</p>
 
-			{m.items.length ? (
-				<div className="media-grid">
-					{m.items.map((item) => (
-						<MediaThumb key={item.id} item={item} />
-					))}
-				</div>
-			) : (
+			{step && !!draft.length && (
+				<>
+					<p className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>
+						پیش‌نویس ({toPersianDigits(draft.length)} فایل) — مشتری تا ثبت ارسال نمی‌بیند. عکس‌ها را در {m.channelName} برایش بفرست و بعد «ثبت ارسال» را بزن.
+					</p>
+					<div className="media-grid draft">
+						{draft.map((item) => (
+							<MediaThumb key={item.id} item={item} />
+						))}
+					</div>
+				</>
+			)}
+			{!!m.items.length && (
+				<>
+					{step && (
+						<p className="muted" style={{ fontSize: 12.5, margin: "12px 0 8px" }}>
+							آخرین عکس‌هایی که مشتری دیده:
+						</p>
+					)}
+					<div className="media-grid">
+						{m.items.map((item) => (
+							<MediaThumb key={item.id} item={item} />
+						))}
+					</div>
+				</>
+			)}
+			{!draft.length && !m.items.length && (
 				<div className="media-wait">
 					<Icon name="camera" />
 					<span>
-						هنوز عکسی ثبت نشده. از <b>همین</b> کیفی که برای مشتری کنار گذاشته شده، از چند زاویه عکس (و اگر شد ویدیو) بگیر و آپلود کن.
+						{step ? (
+							<>
+								هنوز عکسی ثبت نشده. از <b>همین</b> کیفی که برای مشتری کنار گذاشته شده، از چند زاویه عکس (و اگر شد ویدیو) بگیر و آپلود کن.
+							</>
+						) : (
+							"عکاسی وقتی سفارش «در حال آماده‌سازی» است انجام می‌شود."
+						)}
 					</span>
 				</div>
 			)}

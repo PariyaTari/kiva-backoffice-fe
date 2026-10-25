@@ -33,14 +33,14 @@ export const STATUS = {
 	RETURNED: ["مرجوع شد", "DEFAULT"],
 	REFUNDED: ["وجه برگشت داده شد", "DEFAULT"],
 };
-/** What `POST …/status` may move an order to (photos and shipping have their own endpoints). */
+/** What `POST …/status` may move an order to (contract §4 — photos and shipping have their own endpoints; unpaid ones expire). */
 const TRANSITIONS = {
-	PENDING_PAYMENT: ["CANCELLED"],
-	PAYMENT_FAILED: ["CANCELLED"],
+	PENDING_PAYMENT: [],
+	PAYMENT_FAILED: [],
 	EXPIRED: [],
 	RESERVED: ["CANCELLED"],
 	PROCESSING: ["CANCELLED"],
-	PHOTO_SENT: ["PROCESSING", "CANCELLED"],
+	PHOTO_SENT: ["CANCELLED"],
 	CHANGE_REQUESTED: ["CANCELLED"],
 	SHIPPED: ["DELIVERED"],
 	DELIVERED: [],
@@ -50,6 +50,12 @@ const TRANSITIONS = {
 	REFUNDED: [],
 };
 const PAID = (o) => !["PENDING_PAYMENT", "PAYMENT_FAILED", "EXPIRED"].includes(o.status) && o.paidAt;
+/** Kiva's fault — the way back is on Kiva (`ReturnReason`). */
+const KIVA_FAULT = ["NOT_AS_PICTURED", "MANUFACTURING_DEFECT", "WRONG_ITEM", "DAMAGED_IN_TRANSIT"];
+const DEFAULT_INSTRUCTIONS = {
+	KIVA: "کیف رو با بسته‌بندی اصلی با تیپاکس به انبار کیوا بفرست؛ کد پس‌کرایه برات پیامک می‌شه. کد رهگیری رو برای پشتیبانی بفرست.",
+	CUSTOMER: "کیف رو با بسته‌بندی اصلی به انبار کیوا بفرست؛ هزینه‌ی ارسال با خودته. کد رهگیری رو برای پشتیبانی بفرست.",
+};
 
 // ───────────── seed ─────────────
 let rnd = 42;
@@ -93,11 +99,13 @@ function makeOrder(u, status, placedAgo, opts = {}) {
 		messenger: u.defaultMessenger || pick(["TELEGRAM", "BALE", "RUBIKA"]), messengerPhone: u.phone,
 		address: { provinceName: province.name, cityName: city.name, addressLine: `خیابان ${pick(["ولیعصر", "انقلاب", "آزادی", "فردوسی", "حافظ", "بهار"])}، کوچه ${pick(["نسترن", "یاس", "لاله", "مریم"])}، پلاک ${1 + Math.floor(rand() * 90)}`, postalCode: digits(10).replace(/^0/, "1"), recipientName: fullNameOf(u), recipientPhone: u.phone },
 		totals: totalsOf(items, shippingMethod, { code: opts.code, joined: opts.joined }), paidAt: null, gateway: pick(["ZARINPAL", "ZARINPAL", "SAMAN", "MELLAT"]),
-		payments: [], refunds: [], notes: [], media: [], mediaStatus: "WAITING", mediaSentAt: null, feedback: null, feedbackDeadline: null,
+		// `media` = the last batch sent to the shopper; `draft` = what the operator uploaded and hasn't sent yet (1.12.0)
+		payments: [], refunds: [], notes: [], media: [], draft: [], mediaStatus: "WAITING", mediaSentAt: null, feedback: null, feedbackDeadline: null,
 		carrier: null, trackingCode: null, shippedAt: null, deliveredAt: null, cancelledAt: null, group: null, events: [], customerNote: rand() < 0.15 ? "لطفاً بسته‌بندی کادویی باشه." : null,
 	};
 	const paidAt = placedAt + 2 * MIN;
-	const pay = (st, at) => o.payments.push({ gateway: o.gateway, gatewayName: GATEWAYS[o.gateway], status: st, referenceId: st === "SUCCEEDED" ? digits(9) : null, paidAt: at ? iso(at) : null, cardMask: st === "SUCCEEDED" ? `6037-99**-****-${digits(4)}` : null });
+	const pay = (st, at) =>
+		o.payments.push({ purpose: "ORDER", amount: o.totals.payable, gateway: o.gateway, gatewayName: GATEWAYS[o.gateway], status: st, referenceId: st === "SUCCEEDED" ? digits(9) : null, paidAt: at ? iso(at) : null, cardMask: st === "SUCCEEDED" ? `6037-99**-****-${digits(4)}` : null });
 	if (status === "PENDING_PAYMENT") pay("PENDING");
 	else if (status === "PAYMENT_FAILED") pay("FAILED");
 	else if (status === "EXPIRED") pay("EXPIRED");
@@ -174,9 +182,9 @@ for (const [status, count, minDays, maxDays] of PLAN) {
 		makeOrder(customers[ci++ % customers.length], status, ago, { code: rand() < 0.12 ? "KIVA10" : null });
 	}
 }
-// a few PROCESSING orders already have photos uploaded (but not sent) — the rest are «باید عکاسی شود»
+// a few PROCESSING orders already have a photo draft (uploaded, not sent) — every PROCESSING one is «باید عکاسی شود»
 orders.filter((o) => o.status === "PROCESSING").slice(0, 2).forEach((o) => {
-	o.media = o.items.map((it, k) => {
+	o.draft = o.items.map((it, k) => {
 		const { p, v } = variantById(it.variantId);
 		return { mediaId: `shot_${o.code}_${k}_0`, orderItemId: it.id, view: "FRONT", sortOrder: k, url: variantImage(p, v), type: "IMAGE", capturedAt: NOW - HOUR };
 	});
@@ -210,17 +218,15 @@ function makeReturn(o, status, reason, ago) {
 	const it = o.items[0];
 	const r = {
 		id: ++RETURN_SEQ, code: `RT-${RETURN_SEQ}`, orderCode: o.code, status, reason, description: reason === "NOT_AS_PICTURED" ? "رنگش با عکس قبل از ارسال فرق داشت." : reason === "MANUFACTURING_DEFECT" ? "دسته‌ی کیف از یک طرف شکافته." : "اندازه‌اش برام کوچیک بود.",
-		items: [{ orderItemId: it.id, quantity: 1 }], media: [], shippingPaidBy: null, instructions: null, refundMethod: "ORIGINAL_PAYMENT", iban: null,
+		// `shippingPaidBy` is the reason's suggestion from the request on (1.21.0); the IBAN is never stored
+		items: [{ orderItemId: it.id, quantity: 1 }], media: [], shippingPaidBy: KIVA_FAULT.includes(reason) ? "KIVA" : "CUSTOMER", instructions: null, refundMethod: "ORIGINAL_PAYMENT",
 		refund: null, rejectionReason: null, createdAt: Math.min(o.deliveredAt + ago, NOW - 2 * HOUR), decidedAt: null,
 		pickup: null, receipt: null, receivedAt: null, closedAt: null, closeReason: null,
 	};
 	if (status !== "REQUESTED") {
 		r.decidedAt = r.createdAt + 5 * HOUR;
 		if (status === "REJECTED") r.rejectionReason = "مهلت ۷ روزه‌ی بازگشت تمام شده بود.";
-		else {
-			r.shippingPaidBy = reason === "CHANGED_MIND" ? "CUSTOMER" : "KIVA";
-			r.instructions = "کیف رو با بسته‌بندی اصلی با تیپاکس به انبار کیوا بفرست؛ کد پس‌کرایه برات پیامک شد.";
-		}
+		else r.instructions = DEFAULT_INSTRUCTIONS[r.shippingPaidBy];
 	}
 	returns.push(r);
 	return r;
@@ -231,7 +237,6 @@ orders.filter((o) => o.status === "RETURNED").forEach((o) => {
 	r.receivedAt = r.decidedAt + 2 * DAY;
 	r.receipt = { items: r.items.map((ri) => ({ orderItemId: ri.orderItemId, receivedQuantity: ri.quantity, restockQuantity: 0 })), note: "دسته از محل دوخت شکافته؛ برگشت به کارگاه." };
 	r.refundMethod = "BANK_TRANSFER";
-	r.iban = "IR820540102680020817909002";
 });
 orders.filter((o) => o.status === "REFUNDED").forEach((o) => {
 	const r = makeReturn(o, "REFUNDED", "NOT_AS_PICTURED", DAY);
@@ -286,7 +291,7 @@ const mediaItemView = (m) => {
 };
 function preShipmentView(o) {
 	return {
-		status: o.mediaStatus, channel: o.messenger, channelName: MESSENGER[o.messenger], phone: o.messengerPhone, note: null, sentAt: iso(o.mediaSentAt),
+		status: o.mediaStatus, channel: o.messenger, channelName: MESSENGER[o.messenger], phone: o.messengerPhone, username: null, note: null, sentAt: iso(o.mediaSentAt),
 		waitingMessage: o.mediaStatus === "WAITING" ? `قبل از ارسال، از کیف عکس و ویدیو می‌گیریم و توی ${MESSENGER[o.messenger]} می‌فرستیم.` : null,
 		items: [...o.media].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map(mediaItemView), feedback: o.feedback, feedbackDeadline: iso(o.feedbackDeadline),
 	};
@@ -307,6 +312,23 @@ function returnNext(r) {
 		RECEIVED: activeRefund ? [] : ["REFUNDED", "CLOSED"],
 	}[r.status] ?? [];
 }
+/**
+ * 1.21.0 `suggestedRefund` — only in `RECEIVED`: the paid share of what came back (the code discount spread over the
+ * lines, no shipping), capped at what the order can still refund.
+ */
+function suggestedRefundOf(r, o) {
+	if (r.status !== "RECEIVED" || !o) return null;
+	const sub = o.totals.subtotal || 1;
+	const sum = (r.receipt?.items ?? r.items.map((ri) => ({ orderItemId: ri.orderItemId, receivedQuantity: ri.quantity }))).reduce((n, x) => {
+		const it = o.items.find((y) => y.id === x.orderItemId);
+		if (!it) return n;
+		const line = it.unitPrice * it.qty;
+		const paidShare = line - Math.floor((line * o.totals.codeDiscount) / sub);
+		return n + Math.floor((paidShare * x.receivedQuantity) / it.qty);
+	}, 0);
+	return Math.max(0, Math.min(sum, refundable(o)));
+}
+
 export function returnView(r) {
 	const o = orders.find((x) => x.code === r.orderCode);
 	const u = o && userOf(o);
@@ -321,13 +343,14 @@ export function returnView(r) {
 		media: r.media, shippingPaidBy: r.shippingPaidBy, instructions: r.instructions, refundMethod: r.refundMethod, rejectionReason: r.rejectionReason,
 		pickup: r.pickup ? { ...r.pickup, carrierName: SHIP[r.pickup.carrier].name, scheduledFor: iso(r.pickup.scheduledFor) } : null,
 		refund: r.refund, createdAt: iso(r.createdAt), decidedAt: iso(r.decidedAt), receivedAt: iso(r.receivedAt), closedAt: iso(r.closedAt), closeReason: r.closeReason,
-		customer: { id: u?.id, fullName: fullNameOf(u) || null, phone: u?.phone }, iban: r.refundMethod === "BANK_TRANSFER" ? r.iban : null, receipt: r.receipt,
-		allowedTransitions: returnNext(r),
+		customer: { id: u?.id ?? null, fullName: (u && fullNameOf(u)) || null, phone: u?.phone ?? null }, receipt: r.receipt,
+		allowedTransitions: returnNext(r), suggestedRefund: suggestedRefundOf(r, o),
 	};
 }
-function listItem(o) {
+export function listItem(o) {
+	const u = userOf(o);
 	return {
-		code: o.code, placedAt: iso(o.placedAt), status: o.status, customerName: fullNameOf(userOf(o)) || "—", customerPhone: userOf(o)?.phone, city: o.address.cityName,
+		code: o.code, placedAt: iso(o.placedAt), status: o.status, customerName: (u && fullNameOf(u)) || o.address.recipientName || null, customerPhone: u?.phone ?? null, city: o.address.cityName,
 		itemsCount: o.items.reduce((s, i) => s + i.qty, 0), payable: o.totals.payable, shippingMethod: o.shippingMethod, messenger: o.messenger,
 		reserved: o.status === "RESERVED", reservationExpiresAt: o.group && o.status === "RESERVED" ? iso(o.group.releaseAt) : null, shipmentGroupCode: o.group?.code ?? null,
 		mediaCount: o.media.length, trackingCode: o.trackingCode,
@@ -349,8 +372,8 @@ export function adminOrder(o) {
 		totals: o.totals, payment: o.payments[o.payments.length - 1] ?? null, preShipmentMediaDetail: preShipmentView(o),
 		timeline: o.events.map((e) => ({ status: e.status, label: e.label, at: iso(e.at), note: e.note })), customerNote: o.customerNote, gift: null,
 		returns: returns.filter((r) => r.orderCode === o.code).map(returnView), invoiceUrl: null,
-		customer: { id: u?.id, fullName: fullNameOf(u) || "—", phone: u?.phone, ordersCount: orders.filter((x) => x.userId === o.userId).length },
-		shipmentGroup: o.group, payments: o.payments, refunds: o.refunds, notes: o.notes, allowedTransitions: TRANSITIONS[o.status],
+		customer: { id: u?.id, fullName: (u && fullNameOf(u)) || null, phone: u?.phone ?? null, ordersCount: orders.filter((x) => x.userId === o.userId && x.paidAt).length },
+		shipmentGroup: o.group, draftItems: o.draft.map(mediaItemView), payments: o.payments, refunds: o.refunds, notes: o.notes, allowedTransitions: TRANSITIONS[o.status],
 	};
 }
 
@@ -368,14 +391,18 @@ route("GET", "/admin/orders", (ctx) => {
 		if (q.shippingMethod && o.shippingMethod !== q.shippingMethod) return false;
 		if (q.reserved === "true" && o.status !== "RESERVED") return false;
 		if (q.reserved === "false" && o.status === "RESERVED") return false;
-		if (q.awaitingPhotos === "true" && !(o.status === "PROCESSING" && !o.media.length)) return false;
+		// 1.12.0 — `PROCESSING` with the photo step `WAITING`, a draft or not
+		if (q.awaitingPhotos === "true" && !(o.status === "PROCESSING" && o.mediaStatus === "WAITING")) return false;
+		// 1.21.0 — the manual refund queue: orders with a refund in this state
+		if (q.refundStatus && !o.refunds.some((r) => r.status === q.refundStatus)) return false;
 		const day = iso(o.placedAt).slice(0, 10);
 		if (q.from && day < q.from) return false;
 		if (q.to && day > q.to) return false;
 		return true;
 	});
 	const statuses = listParam(q.status);
-	const list = statuses.length ? rest.filter((o) => statuses.includes(o.status)) : rest;
+	// without a status: every paid order (unpaid and expired ones only with an explicit status)
+	const list = (statuses.length ? rest.filter((o) => statuses.includes(o.status)) : rest.filter((o) => o.paidAt)).sort((a, b) => (q.sort === "oldest" ? a.placedAt - b.placedAt : b.placedAt - a.placedAt));
 	const statusCounts = {};
 	rest.forEach((o) => (statusCounts[o.status] = (statusCounts[o.status] || 0) + 1));
 	const { items, meta } = paginate(list, q, 20);
@@ -404,12 +431,6 @@ route("POST", "/admin/orders/:code/status", (ctx) => {
 		}
 	}
 	if (status === "DELIVERED") o.deliveredAt = now;
-	if (status === "PROCESSING") {
-		// a new round of photos after a change request
-		o.mediaStatus = "WAITING";
-		o.feedback = null;
-		o.feedbackDeadline = null;
-	}
 	o.status = status;
 	event(o, status, now, [note, notifyCustomer ? "پیامک به مشتری رفت" : null].filter(Boolean).join(" · ") || null);
 	console.log(`  [status] ${o.code} → ${status} by ${author(me)}`);
@@ -421,16 +442,17 @@ route("PUT", "/admin/orders/:code/pre-shipment-media", (ctx) => {
 	const o = findOrder(ctx.params.code);
 	const list = ctx.body?.items;
 	if (!Array.isArray(list)) fail(400, "VALIDATION_ERROR", "لیست عکس‌ها لازمه.", { errors: [{ field: "items", code: "REQUIRED", message: "لیست عکس‌ها لازمه." }] });
-	if (!["PROCESSING", "RESERVED", "PHOTO_SENT", "CHANGE_REQUESTED"].includes(o.status)) fail(422, "INVALID_STATUS_TRANSITION", "عکس قبل از ارسال فقط برای سفارش‌های آماده‌سازی ثبت می‌شه.");
-	const c = checker();
+	// 1.12.0 — the draft only: `PROCESSING` with the photo step `WAITING` (after a change request too)
+	if (o.status !== "PROCESSING" || o.mediaStatus !== "WAITING") fail(422, "INVALID_STATUS_TRANSITION", "پیش‌نویس عکس فقط برای سفارش «در حال آماده‌سازی» که منتظر عکس است ثبت می‌شه.");
+	const c = checker().need(list.length <= 20, "items", "حداکثر ۲۰ فایل.");
 	list.forEach((m, i) => {
-		const known = assets.has(m.mediaId) || o.media.some((x) => x.mediaId === m.mediaId);
-		c.need(known, `items[${i}].mediaId`, "این فایل پیدا نشد؛ دوباره آپلودش کن.", "MEDIA_NOT_FOUND");
-		c.need(m.orderItemId == null || o.items.some((it) => it.id === Number(m.orderItemId)), `items[${i}].orderItemId`, "این قلم در سفارش نیست.");
+		const known = assets.has(m.mediaId) || o.draft.some((x) => x.mediaId === m.mediaId);
+		c.need(known, `items.${i}.mediaId`, "این فایل پیدا نشد؛ دوباره آپلودش کن.", "MEDIA_NOT_FOUND");
+		c.need(m.orderItemId == null || o.items.some((it) => it.id === Number(m.orderItemId)), `items.${i}.orderItemId`, "این قلم در سفارش نیست.");
 	});
 	c.done();
-	o.media = list.map((m, i) => {
-		const prev = o.media.find((x) => x.mediaId === m.mediaId);
+	o.draft = list.map((m, i) => {
+		const prev = o.draft.find((x) => x.mediaId === m.mediaId);
 		const a = assets.get(m.mediaId);
 		return { mediaId: m.mediaId, orderItemId: m.orderItemId ?? null, view: m.view ?? null, sortOrder: m.sortOrder ?? i, url: prev?.url ?? a?.url, type: prev?.type ?? a?.type ?? "IMAGE", capturedAt: prev?.capturedAt ?? Date.now() };
 	});
@@ -440,18 +462,24 @@ route("PUT", "/admin/orders/:code/pre-shipment-media", (ctx) => {
 route("POST", "/admin/orders/:code/pre-shipment-media/send", (ctx) => {
 	staff(ctx, ...ORDER_ROLES);
 	const o = findOrder(ctx.params.code);
-	if (!["PROCESSING", "PHOTO_SENT", "CHANGE_REQUESTED"].includes(o.status)) fail(422, "INVALID_STATUS_TRANSITION", "این سفارش در مرحله‌ی ارسال عکس نیست.");
-	if (!o.media.length) fail(422, "INVALID_STATUS_TRANSITION", "اول عکس‌ها رو به سفارش وصل کن.");
-	const { manual = false, channelOverride = null, message = null } = ctx.body || {};
+	if (o.status !== "PROCESSING" || o.mediaStatus !== "WAITING") fail(422, "INVALID_STATUS_TRANSITION", "این سفارش در مرحله‌ی ارسال عکس نیست.");
+	if (!o.draft.length) fail(422, "INVALID_STATUS_TRANSITION", "اول عکس‌ها رو به سفارش وصل کن.");
+	// a multi-line order needs a photo of every line
+	const missing = o.items.length > 1 ? o.items.filter((it) => !o.draft.some((m) => m.orderItemId === it.id)).map((it) => it.id) : [];
+	if (missing.length) fail(422, "PHOTOS_INCOMPLETE", "برای هر کیف سفارش دست‌کم یک عکس لازمه.", { meta: { missingItemIds: missing } });
+	// 1.12.0 — always by hand: the operator sent it in the messenger and records it here
+	const { channelOverride = null, message = null } = ctx.body || {};
 	if (channelOverride && !MESSENGER[channelOverride]) fail(400, "VALIDATION_ERROR", "پیام‌رسان معتبر نیست.", { errors: [{ field: "channelOverride", code: "INVALID", message: "پیام‌رسان معتبر نیست." }] });
 	const now = Date.now();
 	if (channelOverride) o.messenger = channelOverride;
+	o.media = o.draft;
+	o.draft = [];
 	o.status = "PHOTO_SENT";
 	o.mediaStatus = "SENT";
 	o.mediaSentAt = now;
 	o.feedback = null;
 	o.feedbackDeadline = now + FEEDBACK_HOURS * HOUR;
-	event(o, "PHOTO_SENT", now, [manual ? "ارسال دستی" : `ارسال خودکار در ${MESSENGER[o.messenger]}`, message].filter(Boolean).join(" · "));
+	event(o, "PHOTO_SENT", now, [`ارسال دستی در ${MESSENGER[o.messenger]}`, message].filter(Boolean).join(" · "));
 	return adminOrder(o);
 });
 
@@ -520,12 +548,21 @@ route("PUT", "/admin/orders/:code/shipment", (ctx) => {
 		.need(!!SHIP[carrier], "carrier", "حامل رو انتخاب کن.")
 		.need(code.length >= 6 && code.length <= 40, "trackingCode", "کد رهگیری باید ۶ تا ۴۰ کاراکتر باشه.")
 		.done();
-	if (["SHIPPED", "DELIVERED", "RETURN_REQUESTED", "RETURNED", "REFUNDED"].includes(o.status)) fail(422, "ORDER_ALREADY_SHIPPED", "این سفارش قبلاً ارسال شده.");
-	if (!["PHOTO_SENT", "PROCESSING"].includes(o.status)) fail(422, "INVALID_STATUS_TRANSITION", `سفارش «${STATUS[o.status][0]}» رو نمی‌شه ارسال کرد.`);
+	// on a `SHIPPED` order: corrects the code / time, no SMS
+	if (o.status === "SHIPPED") {
+		Object.assign(o, { carrier, trackingCode: code, shippedAt: shippedAt ? Date.parse(shippedAt) : o.shippedAt, showInDailyList: !!showInDailyList });
+		return adminOrder(o);
+	}
+	if (["DELIVERED", "RETURN_REQUESTED", "RETURNED", "REFUNDED"].includes(o.status)) fail(422, "ORDER_ALREADY_SHIPPED", "این سفارش قبلاً ارسال شده.");
+	if (o.status !== "PHOTO_SENT") fail(422, "INVALID_STATUS_TRANSITION", `سفارش «${STATUS[o.status][0]}» رو نمی‌شه ارسال کرد.`);
+	const answered = (x) => x.mediaStatus === "APPROVED" || (x.feedbackDeadline && x.feedbackDeadline <= Date.now());
+	if (!answered(o)) fail(422, "AWAITING_CUSTOMER_FEEDBACK", "مشتری هنوز به عکس جواب نداده و مهلتش هم تموم نشده.", { meta: { feedbackDeadline: iso(o.feedbackDeadline) } });
 	if (o.totals.balanceDue > 0) fail(422, "BALANCE_DUE", `مشتری هنوز ${o.totals.balanceDue.toLocaleString("fa-IR")} تومان مابه‌التفاوت رو نپرداخته.`, { meta: { balanceDue: o.totals.balanceDue } });
 	const at = shippedAt ? Date.parse(shippedAt) : Date.now();
-	// a reservation group leaves together, under one tracking code
-	const group = o.group ? orders.filter((x) => x.group?.code === o.group.code && ["PHOTO_SENT", "PROCESSING"].includes(x.status)) : [o];
+	// a reservation group leaves together, under one tracking code — every not-cancelled order of it must be ready
+	const group = o.group ? orders.filter((x) => x.group?.code === o.group.code && x.status !== "CANCELLED") : [o];
+	const notReady = group.filter((x) => x.status !== "PHOTO_SENT" || !answered(x) || x.totals.balanceDue > 0).map((x) => x.code);
+	if (notReady.length) fail(422, "GROUP_NOT_READY", "همه‌ی سفارش‌های این گروه رزرو هنوز آماده‌ی ارسال نیستند.", { meta: { orderCodes: notReady } });
 	for (const x of group) {
 		x.carrier = carrier;
 		x.trackingCode = code;
@@ -558,19 +595,21 @@ const refundable = (o) => o.totals.payable - o.refunds.filter((r) => r.status !=
 route("POST", "/admin/orders/:code/refunds", (ctx) => {
 	staff(ctx); // ADMIN only
 	const o = findOrder(ctx.params.code);
-	const { amount, reason, method = "ORIGINAL_PAYMENT", returnId = null } = ctx.body || {};
+	const { amount, reason, method = null, returnId = null } = ctx.body || {};
 	const left = refundable(o);
+	const r = returnId != null ? returns.find((x) => x.id === Number(returnId) && x.orderCode === o.code) : null;
 	checker()
 		.need(Number.isInteger(amount) && amount > 0, "amount", "مبلغ استرداد رو وارد کن.")
-		.need(!(Number.isInteger(amount) && amount > left), "amount", `حداکثر ${Math.max(0, left).toLocaleString("fa-IR")} تومان قابل برگشته.`, "AMOUNT_EXCEEDS_PAID")
-		.need(!!String(reason ?? "").trim() && String(reason).length <= 300, "reason", "دلیل استرداد رو بنویس (حداکثر ۳۰۰ حرف).")
-		.need(["ORIGINAL_PAYMENT", "BANK_TRANSFER", "STORE_CREDIT"].includes(method), "method", "روش برگشت پول معتبر نیست.")
-		.need(returnId == null || returns.some((r) => r.id === Number(returnId) && r.orderCode === o.code), "returnId", "این مرجوعی مال این سفارش نیست.")
+		.need(!(Number.isInteger(amount) && amount > left), "amount", `حداکثر ${Math.max(0, left).toLocaleString("fa-IR")} تومان قابل برگشته.`, "REFUND_EXCEEDS_PAID")
+		.need(!!String(reason ?? "").trim() && String(reason).length <= 300, "reason", "دلیل استرداد رو بنویس (حداکثر ۳۰۰ حرف).", "REFUND_REASON_REQUIRED")
+		.need(method == null || ["ORIGINAL_PAYMENT", "BANK_TRANSFER"].includes(method), "method", "روش برگشت پول معتبر نیست.")
+		.need(returnId == null || !!r, "returnId", "این مرجوعی مال این سفارش نیست.", "RETURN_NOT_FOUND")
 		.done();
 	if (!PAID(o)) fail(422, "INVALID_STATUS_TRANSITION", "سفارش پرداخت‌نشده استرداد نداره.");
-	const r = returnId != null ? returns.find((x) => x.id === Number(returnId)) : null;
 	if (r && r.status !== "RECEIVED") fail(422, "INVALID_STATUS_TRANSITION", "استرداد مرجوعی بعد از رسیدن کالا به انبار ثبت می‌شه.");
-	const refund = newRefund(amount, method, String(reason).trim(), r ? r.id : null);
+	if (r && o.refunds.some((x) => x.returnId === r.id && x.status !== "FAILED")) fail(422, "RETURN_REFUND_EXISTS", "این مرجوعی استرداد ثبت‌شده دارد؛ فقط بعد از ناموفق شدنش یکی تازه ثبت می‌شه.");
+	// `method` left out: the return's preference, else back to the card
+	const refund = newRefund(amount, method ?? r?.refundMethod ?? "ORIGINAL_PAYMENT", String(reason).trim(), r ? r.id : null);
 	o.refunds.push(refund);
 	if (r) r.refund = refund;
 	ctx.status = 201;
@@ -586,7 +625,7 @@ route("PATCH", "/admin/refunds/:id", (ctx) => {
 	const ref = toEn(referenceId ?? "").trim();
 	checker()
 		.need(["PROCESSING", "COMPLETED", "FAILED"].includes(status), "status", "وضعیت تازه رو انتخاب کن.")
-		.need(!(status === "COMPLETED" && refund.method !== "STORE_CREDIT" && !ref), "referenceId", "شماره‌ی پیگیری بانک رو وارد کن.")
+		.need(!(status === "COMPLETED" && !ref), "referenceId", "شماره‌ی پیگیری بانک رو وارد کن.")
 		.need(ref.length <= 64, "referenceId", "حداکثر ۶۴ حرف.")
 		.need(!note || String(note).length <= 300, "note", "یادداشت حداکثر ۳۰۰ حرف.")
 		.done();
@@ -609,10 +648,13 @@ route("PATCH", "/admin/refunds/:id", (ctx) => {
 	return refund;
 });
 
+const RETURN_STATUSES = ["REQUESTED", "APPROVED", "REJECTED", "PICKUP_SCHEDULED", "RECEIVED", "REFUNDED", "CLOSED"];
 route("GET", "/admin/returns", (ctx) => {
 	staff(ctx, ...ORDER_ROLES);
-	const status = ctx.query.status;
-	const list = status ? returns.filter((r) => r.status === status) : returns;
+	const { status, sort } = ctx.query;
+	if (status && !RETURN_STATUSES.includes(status)) fail(400, "VALIDATION_ERROR", "وضعیت مرجوعی معتبر نیست.", { errors: [{ field: "status", code: "RETURN_STATUS_INVALID", message: "وضعیت مرجوعی معتبر نیست." }] });
+	// `oldest` first — parcels that never arrived surface (no auto-close)
+	const list = (status ? returns.filter((r) => r.status === status) : [...returns]).sort((a, b) => (sort === "oldest" ? a.createdAt - b.createdAt : b.createdAt - a.createdAt));
 	const { items, meta } = paginate(list, ctx.query, 20);
 	return { items: items.map(returnView), meta };
 });
@@ -625,15 +667,17 @@ route("POST", "/admin/returns/:id/decision", (ctx) => {
 		.need(typeof approve === "boolean", "approve", "تأیید یا رد رو انتخاب کن.")
 		.need(!approve || !shippingPaidBy || ["KIVA", "CUSTOMER"].includes(shippingPaidBy), "shippingPaidBy", "پرداخت‌کننده‌ی هزینه‌ی برگشت معتبر نیست.")
 		.need(!approve || !instructions || String(instructions).length <= 1000, "instructions", "راهنما حداکثر ۱۰۰۰ حرف.")
-		.need(approve !== false || !!String(rejectionReason ?? "").trim(), "rejectionReason", "دلیل رد رو بنویس.")
+		.need(approve !== false || String(rejectionReason ?? "").trim().length >= 3, "rejectionReason", "دلیل رد رو بنویس (دست‌کم ۳ حرف).", "REJECTION_REASON_REQUIRED")
+		.need(!rejectionReason || String(rejectionReason).length <= 500, "rejectionReason", "حداکثر ۵۰۰ حرف.")
 		.done();
 	if (r.status !== "REQUESTED") fail(422, "INVALID_STATUS_TRANSITION", "درباره‌ی این مرجوعی قبلاً تصمیم گرفته شده.");
 	r.decidedAt = Date.now();
 	const o = orders.find((x) => x.code === r.orderCode);
 	if (approve) {
 		r.status = "APPROVED";
-		r.shippingPaidBy = shippingPaidBy || (r.reason === "CHANGED_MIND" ? "CUSTOMER" : "KIVA");
-		r.instructions = instructions?.trim() || null;
+		// left out: the reason's suggestion, and that payer's default text
+		r.shippingPaidBy = shippingPaidBy || r.shippingPaidBy;
+		r.instructions = instructions?.trim() || DEFAULT_INSTRUCTIONS[r.shippingPaidBy];
 	} else {
 		r.status = "REJECTED";
 		r.rejectionReason = String(rejectionReason).trim();
@@ -653,10 +697,12 @@ route("PUT", "/admin/returns/:id/pickup", (ctx) => {
 	const r = findReturn(ctx.params.id);
 	const { carrier, scheduledFor = null, trackingCode = null, note = null, notifyCustomer = true } = ctx.body || {};
 	const code = toEn(trackingCode ?? "").trim();
+	const when = scheduledFor == null ? null : Date.parse(scheduledFor);
 	checker()
-		.need(!!SHIP[carrier], "carrier", "حامل رو انتخاب کن.")
-		.need(!code || (code.length >= 6 && code.length <= 40), "trackingCode", "کد رهگیری باید ۶ تا ۴۰ کاراکتر باشه.")
-		.need(scheduledFor == null || !Number.isNaN(Date.parse(scheduledFor)), "scheduledFor", "زمان معتبر نیست.")
+		.need(!!SHIP[carrier], "carrier", "حامل رو انتخاب کن.", "CARRIER_INVALID")
+		.need(carrier !== "COURIER", "carrier", "جمع‌آوری مرجوعی فقط با تیپاکس یا پست.", "SHIPPING_METHOD_NOT_SUPPORTED")
+		.need(!code || /^[A-Za-z0-9-]{6,40}$/.test(code), "trackingCode", "کد رهگیری ۶ تا ۴۰ حرف و رقم انگلیسی یا خط تیره.", "TRACKING_CODE_INVALID")
+		.need(when == null || (!Number.isNaN(when) && when >= Date.now() - HOUR && when <= Date.now() + 30 * DAY), "scheduledFor", "زمان مراجعه از یک ساعت پیش تا ۳۰ روز بعد.", "PICKUP_TIME_INVALID")
 		.need(!note || String(note).length <= 500, "note", "حداکثر ۵۰۰ حرف.")
 		.done();
 	step(r, "PICKUP_SCHEDULED");
@@ -670,12 +716,17 @@ route("POST", "/admin/returns/:id/receipt", (ctx) => {
 	const me = staff(ctx, ...ORDER_ROLES);
 	const r = findReturn(ctx.params.id);
 	const { items, note = null } = ctx.body || {};
-	const c = checker().need(Array.isArray(items) && items.length > 0, "items", "برای هر قلم تعداد رسیده رو بنویس.");
-	(Array.isArray(items) ? items : []).forEach((x, i) => {
+	const list = Array.isArray(items) ? items : [];
+	// every line of the return exactly once
+	const ids = list.map((x) => Number(x.orderItemId));
+	const exact = ids.length === r.items.length && new Set(ids).size === ids.length && r.items.every((ri) => ids.includes(ri.orderItemId));
+	const c = checker()
+		.need(list.length > 0, "items", "برای هر قلم تعداد رسیده رو بنویس.", "FIELD_REQUIRED")
+		.need(!list.length || exact, "items", "برای هر قلم مرجوعی دقیقاً یک ردیف لازمه.", "RECEIPT_ITEMS_MISMATCH");
+	list.forEach((x, i) => {
 		const ri = r.items.find((y) => y.orderItemId === Number(x.orderItemId));
-		c.need(!!ri, `items[${i}].orderItemId`, "این قلم در مرجوعی نیست.");
-		c.need(Number.isInteger(x.receivedQuantity) && x.receivedQuantity >= 0 && (!ri || x.receivedQuantity <= ri.quantity), `items[${i}].receivedQuantity`, `بین ۰ و ${(ri?.quantity ?? 0).toLocaleString("fa-IR")}.`);
-		c.need(Number.isInteger(x.restockQuantity) && x.restockQuantity >= 0 && x.restockQuantity <= (x.receivedQuantity ?? 0), `items[${i}].restockQuantity`, "برگشتی به انبار بیشتر از رسیده نمی‌شه.");
+		c.need(Number.isInteger(x.receivedQuantity) && x.receivedQuantity >= 0 && (!ri || x.receivedQuantity <= ri.quantity), `items.${i}.receivedQuantity`, `بین ۰ و ${(ri?.quantity ?? 0).toLocaleString("fa-IR")}.`, "RECEIVED_QUANTITY_EXCEEDS");
+		c.need(Number.isInteger(x.restockQuantity) && x.restockQuantity >= 0 && x.restockQuantity <= (x.receivedQuantity ?? 0), `items.${i}.restockQuantity`, "برگشتی به انبار بیشتر از رسیده نمی‌شه.", "RESTOCK_EXCEEDS_RECEIVED");
 	});
 	c.need(!note || String(note).length <= 1000, "note", "حداکثر ۱۰۰۰ حرف.").done();
 	step(r, "RECEIVED");
@@ -701,7 +752,10 @@ route("POST", "/admin/returns/:id/close", (ctx) => {
 	const r = findReturn(ctx.params.id);
 	const { reason, notifyCustomer = true } = ctx.body || {};
 	const text = String(reason ?? "").trim();
-	checker().need(text.length >= 3 && text.length <= 500, "reason", "دلیل بستن رو بنویس (۳ تا ۵۰۰ حرف).").done();
+	checker().need(text.length >= 3 && text.length <= 500, "reason", "دلیل بستن رو بنویس (۳ تا ۵۰۰ حرف).", "CLOSE_REASON_REQUIRED").done();
+	const o0 = orderOfReturn(r);
+	if (r.status === "RECEIVED" && o0?.refunds.some((x) => x.returnId === r.id && ["PENDING", "PROCESSING"].includes(x.status)))
+		fail(422, "RETURN_REFUND_OPEN", "استرداد این مرجوعی هنوز باز است؛ اول تمامش کن یا «ناموفق» ثبت کن.");
 	step(r, "CLOSED");
 	r.status = "CLOSED";
 	r.closedAt = Date.now();

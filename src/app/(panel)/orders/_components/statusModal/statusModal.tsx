@@ -18,9 +18,9 @@ import { isStaleOrderError } from "../../_utils/apiError";
 
 /** What each manual move means for the shopper — shown under the choice. */
 const EFFECT: Partial<Record<OrderStatus, string>> = {
-	CANCELLED: "سفارش لغو می‌شود؛ اگر پرداخت شده، مبلغ برای برگشت به کارت ثبت می‌شود.",
-	DELIVERED: "پیامک «تحویل شد» با درخواست ثبت نظر برای مشتری می‌رود (اگر روشن باشد).",
-	PROCESSING: "برای عکاسی دوباره به صف آماده‌سازی برمی‌گردد.",
+	CANCELLED:
+		"سفارش لغو می‌شود: موجودی آزاد و کد تخفیف برگردانده می‌شود، و اگر پرداخت شده یک استرداد «در انتظار» به اندازه‌ی مانده‌ی پرداختی ثبت می‌شود تا همکاران برای گرفتن شبا با مشتری تماس بگیرند.",
+	DELIVERED: "لحظه‌ی تحویل همین الان ثبت و مهلت مرجوعی از همین حالا شمرده می‌شود؛ پیامک «تحویل شد» با درخواست ثبت نظر می‌رود (اگر روشن باشد).",
 };
 
 type StatusModalProps = { order: AdminOrder; open: boolean; onClose: () => void };
@@ -78,7 +78,7 @@ function StatusForm({ order, onClose }: Omit<StatusModalProps, "open">) {
 				{status && EFFECT[status] && <p className={`note${status === "CANCELLED" ? " danger" : ""}`}>{EFFECT[status]}</p>}
 				<Textarea
 					label="یادداشت"
-					labelNote="اختیاری، در تاریخچه می‌ماند"
+					labelNote="اختیاری؛ در تاریخچه‌ی سفارش مشتری هم دیده می‌شود"
 					maxLength={500}
 					value={note}
 					onChange={(e) => setNote(e.target.value)}

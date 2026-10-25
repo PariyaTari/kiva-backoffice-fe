@@ -20,9 +20,13 @@ export type StockTarget = { variantId: number; sku: string; label: string; stock
 
 type StockModalProps = { target: StockTarget | null; onClose: () => void };
 
+/** One adjustment moves at most this many units either way (`STOCK_DELTA_INVALID`). */
+const MAX_DELTA = 10_000;
+
 /**
- * `POST /admin/inventory/adjustments` — stock only changes with a reason and is logged. «شمارش انبار» takes the
- * counted number and sends the difference. A colour back from zero queues the «موجود شد» SMS for its subscribers.
+ * `POST /admin/inventory/adjustments` — stock only changes with a reason and is logged. Each reason has its direction
+ * (in: ورود کالا، مرجوعی · out: آسیب‌دیده · either: شمارش، اصلاح). «شمارش انبار» takes the counted number and sends the
+ * difference. Stock never drops below what is reserved. A colour back from zero queues the «موجود شد» SMS.
  */
 export default function StockModal({ target, onClose }: StockModalProps) {
 	return (
@@ -50,12 +54,23 @@ function StockForm({ target, onClose }: { target: StockTarget; onClose: () => vo
 			toast(`موجودی ${a.sku} شد ${toPersianDigits(a.stockAfter)}`, { icon: "check" });
 			queryClient.invalidateQueries({ queryKey: ["products"] });
 			queryClient.invalidateQueries({ queryKey: ["inventory"] });
+			// a colour back in stock leaves the «موجود شد خبرم کن» queue
+			queryClient.invalidateQueries({ queryKey: ["stockAlerts"] });
 			onClose();
 		},
 	});
 
 	const errors = fieldErrorsOf(adjust.error);
-	const invalid = !delta ? "مقدار را وارد کن (تغییر نباید صفر باشد)." : after < 0 ? `بیشتر از موجودی فیزیکی (${toPersianDigits(target.stockOnHand)}) نمی‌شود کم کرد.` : null;
+	const sellable = target.stockOnHand - target.stockReserved;
+	const invalid = !delta
+		? counting && amount != null
+			? "با موجودی فعلی یکی است؛ تغییری لازم نیست."
+			: "مقدار را وارد کن (تغییر نباید صفر باشد)."
+		: Math.abs(delta) > MAX_DELTA
+			? "هر بار حداکثر ۱۰٬۰۰۰ عدد."
+			: after < target.stockReserved
+				? `${toPersianDigits(target.stockReserved)} عدد رزرو سفارش‌هاست؛ حداکثر ${toPersianDigits(Math.max(0, sellable))} عدد می‌شود کم کرد.`
+				: null;
 
 	return (
 		<>

@@ -19,12 +19,12 @@ import Textarea from "@/app/_components/ui/textarea/textarea";
 import { toast } from "@/store/notification.store";
 import { AdminProduct } from "@/types/catalog.type";
 import { toPersianDigits } from "@/utils/digits";
-import { fieldErrorsOf } from "@/utils/fieldErrors";
+import { fieldErrorsWith } from "@/utils/fieldErrors";
 import { BAG_TYPE, optionsOf } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 import { ProductsEndpoints } from "../../_api/productsEndpoints";
 import { isStaleProductError } from "../../_utils/apiError";
-import { ProductFormValues, toFormValues, toPayload, validateProduct } from "../../_utils/productForm";
+import { PRODUCT_LIMITS, ProductFormValues, toFormValues, toPayload, validateProduct } from "../../_utils/productForm";
 import SpecsFields from "../specsFields/specsFields";
 
 type ProductFormProps = {
@@ -43,6 +43,8 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 export default function ProductForm({ product, onCreated }: ProductFormProps) {
 	const queryClient = useQueryClient();
 	const creating = !product;
+	// an archived product is read-only (`422 PRODUCT_ARCHIVED`)
+	const archived = product?.status === "ARCHIVED";
 	const [base, setBase] = useState(() => ({ etag: product?.etag ?? "", values: toFormValues(product) }));
 	const [values, setValues] = useState<ProductFormValues>(base.values);
 	const [touched, setTouched] = useState(false);
@@ -104,11 +106,12 @@ export default function ProductForm({ product, onCreated }: ProductFormProps) {
 	};
 
 	const local = validateProduct(values);
-	const server = fieldErrorsOf(save.error);
+	const server = fieldErrorsWith(save.error, { DUPLICATE_SLUG: "slug", DUPLICATE_SKU: "sku" });
 	const err = (key: string) => (touched && local[key]) || server[key] || null;
 
 	const submit = (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
+		if (archived) return;
 		setTouched(true);
 		if (Object.keys(local).length) {
 			toast("چند فیلد را باید درست کنی", { type: "error" });
@@ -130,14 +133,26 @@ export default function ProductForm({ product, onCreated }: ProductFormProps) {
 					<Input label="نام محصول" value={values.name} maxLength={120} onChange={(e) => set("name", e.target.value)} error={err("name")} wrapperClassName="full" />
 					<Input
 						label="slug"
-						labelNote="آدرس در سایت"
+						labelNote={creating ? "آدرس در سایت" : "بعد از ساخت عوض نمی‌شود"}
 						direction="ltr"
+						maxLength={100}
+						disabled={!creating}
 						value={values.slug}
 						onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-"))}
 						error={err("slug")}
 						hint={values.slug ? `/product/${values.slug}` : "مثل mahak-shoulder-bag"}
 					/>
-					<Input label="SKU" labelNote="خالی = خودکار" direction="ltr" value={values.sku} onChange={(e) => set("sku", e.target.value.toUpperCase())} error={err("sku")} placeholder="KV-1001" />
+					<Input
+						label="SKU"
+						labelNote={creating ? "خالی = خودکار" : "بعد از ساخت عوض نمی‌شود"}
+						direction="ltr"
+						maxLength={40}
+						disabled={!creating}
+						value={values.sku}
+						onChange={(e) => set("sku", e.target.value.toUpperCase())}
+						error={err("sku")}
+						placeholder="KV-1001"
+					/>
 					<Select
 						label="دسته"
 						placeholder={categories.isLoading ? "در حال بارگذاری…" : "انتخاب دسته"}
@@ -200,10 +215,20 @@ export default function ProductForm({ product, onCreated }: ProductFormProps) {
 						labelNote="تب «توضیحات»"
 						value={values.description}
 						onChange={(e) => set("description", e.target.value)}
+						error={err("description")}
 						style={{ minHeight: 160 }}
 					/>
 					<ChipsInput label="بولت‌های «چرا این کیف؟»" labelNote="حداکثر ۸" max={8} maxLength={160} value={values.highlights} onChange={(v) => set("highlights", v)} error={err("highlights")} />
-					<ChipsInput label="برچسب‌ها" value={values.tags} onChange={(v) => set("tags", v)} placeholder="مینیمال، روزمره…" />
+					<ChipsInput
+						label="برچسب‌ها"
+						labelNote="حداکثر ۲۰"
+						max={PRODUCT_LIMITS.tags}
+						maxLength={PRODUCT_LIMITS.tagLength}
+						value={values.tags}
+						onChange={(v) => set("tags", v)}
+						error={err("tags")}
+						placeholder="مینیمال، روزمره…"
+					/>
 				</div>
 			</section>
 
@@ -220,7 +245,13 @@ export default function ProductForm({ product, onCreated }: ProductFormProps) {
 					<Icon name="gear" /> فروش
 				</h3>
 				<div className="form-grid g3" style={{ marginTop: 14 }}>
-					<NumberInput label="سقف تعداد در هر سفارش" value={values.maxPerOrder} onChange={(v) => set("maxPerOrder", v)} error={err("maxPerOrder")} />
+					<NumberInput
+						label="سقف تعداد در هر سفارش"
+						labelNote="۱ تا ۲۰، همه‌ی رنگ‌ها با هم"
+						value={values.maxPerOrder}
+						onChange={(v) => set("maxPerOrder", v)}
+						error={err("maxPerOrder")}
+					/>
 					<NumberInput label="اولویت چیدمان" labelNote="بزرگ‌تر = بالاتر" signed value={values.sortPriority} onChange={(v) => set("sortPriority", v)} />
 					<div className="field">
 						<label>تگ «جدید» تا</label>
@@ -284,13 +315,21 @@ export default function ProductForm({ product, onCreated }: ProductFormProps) {
 					<Icon name="search" /> SEO
 				</h3>
 				<p className="d">خالی بماند، فروشگاه از نام و توضیح کوتاه محصول می‌سازد.</p>
-				<SeoFields value={values.seo} onChange={(v) => set("seo", v)} errors={{ ...server, ...(touched ? local : {}) }} titlePlaceholder={values.name ? `${values.name} | کیوا` : undefined} />
+				<SeoFields
+					serverBuilt
+					value={values.seo}
+					onChange={(v) => set("seo", v)}
+					errors={{ ...server, ...(touched ? local : {}) }}
+					titlePlaceholder={values.name ? `${values.name} | کیوا` : undefined}
+				/>
 			</section>
 
 			<UnsavedGuard dirty={dirty} />
 			<div className="savebar">
 				<span className="msg">
-					{stale ? (
+					{archived ? (
+						"محصول آرشیو شده؛ ویرایش ندارد."
+					) : stale ? (
 						<span style={{ color: "var(--danger)" }}>
 							این محصول جای دیگری ذخیره شده؛{" "}
 							<button type="button" className="btn-link btn" onClick={reread}>
@@ -310,7 +349,7 @@ export default function ProductForm({ product, onCreated }: ProductFormProps) {
 						برگرداندن تغییرات
 					</Button>
 				)}
-				<Button type="submit" size="sm" isLoading={save.isPending} disabled={!creating && !dirty}>
+				<Button type="submit" size="sm" isLoading={save.isPending} disabled={archived || (!creating && !dirty)}>
 					{creating ? "ساخت محصول" : "ذخیره"}
 				</Button>
 			</div>

@@ -16,16 +16,17 @@ import SearchInput from "@/app/_components/panel/searchInput/searchInput";
 import Button from "@/app/_components/ui/button/button";
 import Checkbox from "@/app/_components/ui/checkbox/checkbox";
 import { LIVE_POLL_MS } from "@/config/global";
+import { useCan } from "@/hooks/useCan";
 import { useTableState } from "@/hooks/useTableState";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { toast } from "@/store/notification.store";
 import { OrderCode, ShippingMethodCode } from "@/types/common.type";
-import { AdminOrder, AdminOrderFilters, AdminOrderListItem, OrderStatus } from "@/types/order.type";
+import { AdminOrder, AdminOrderFilters, AdminOrderListItem, AdminOrderSort, OrderStatus } from "@/types/order.type";
 import { toErrorView } from "@/utils/apiError";
 import { downloadCsv } from "@/utils/csv";
 import { toPersianDigits } from "@/utils/digits";
-import { formatDateTime } from "@/utils/format";
-import { labelOf, MESSENGER, optionsOf, ORDER_STATUS, SHIPPING_METHOD } from "@/utils/labels";
+import { DELETED_ACCOUNT, formatDateTime } from "@/utils/format";
+import { labelOf, MESSENGER, optionsOf, ORDER_SORT, ORDER_STATUS, REFUND_STATUS, SHIPPING_METHOD } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 import { OrdersEndpoints } from "../../_api/ordersEndpoints";
 import { ERROR_BEHAVIOUR } from "../../_utils/apiError";
@@ -51,7 +52,13 @@ const TABS: Tab[] = [
 	{ key: "failed", label: "ناموفق / منقضی", statuses: ["PAYMENT_FAILED", "EXPIRED"] },
 ];
 
-const DEFAULTS = { tab: "all", q: "", ship: "", from: "", to: "" };
+/** Unpaid and expired orders only come with an explicit status — «همه» doesn't count them. */
+const UNPAID: OrderStatus[] = ["PENDING_PAYMENT", "PAYMENT_FAILED", "EXPIRED"];
+
+/** The manual refund queue (ADMIN): orders with a refund still to transfer. */
+const REFUND_FILTER = { PENDING: `استرداد ${REFUND_STATUS.PENDING}`, PROCESSING: `استرداد ${REFUND_STATUS.PROCESSING}` } as const;
+
+const DEFAULTS = { tab: "all", q: "", ship: "", refund: "", sort: "newest", from: "", to: "" };
 
 /** The CSV export reads the filtered queue page by page — up to this many rows. */
 const EXPORT_PAGE = 100;
@@ -61,7 +68,7 @@ const csvRow = (o: AdminOrderListItem) => [
 	o.code,
 	formatDateTime(o.placedAt),
 	labelOf(ORDER_STATUS, o.status),
-	o.customerName,
+	o.customerName ?? (o.customerPhone ? "" : DELETED_ACCOUNT),
 	o.customerPhone,
 	o.city,
 	o.itemsCount,
@@ -75,6 +82,7 @@ const csvRow = (o: AdminOrderListItem) => [
 
 /** `/orders` — the operator's queue: tabs with counters, search by code / phone / name, filters, the table. */
 export default function OrdersView() {
+	const can = useCan();
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const [f, setF] = useUrlFilters(DEFAULTS);
@@ -85,8 +93,10 @@ export default function OrdersView() {
 		q: f.q || undefined,
 		shippingMethod: (f.ship || undefined) as ShippingMethodCode | undefined,
 		awaitingPhotos: tab.awaiting || undefined,
+		refundStatus: (f.refund || undefined) as AdminOrderFilters["refundStatus"],
 		from: f.from || undefined,
 		to: f.to || undefined,
+		sort: f.sort === "oldest" ? "oldest" : undefined,
 	};
 	const { page, setPage, pageSize, setPageSize } = useTableState({ resetPageOn: [filters] });
 
@@ -116,8 +126,8 @@ export default function OrdersView() {
 
 	const counts = orders.data?.statusCounts ?? {};
 	const countOf = (t: Tab) =>
-		t.awaiting ? null : (t.statuses ?? (Object.keys(counts) as OrderStatus[])).reduce((sum, s) => sum + (counts[s] ?? 0), 0);
-	const filtered = !!(f.q || f.ship || f.from || f.to);
+		t.awaiting ? null : (t.statuses ?? (Object.keys(counts) as OrderStatus[]).filter((s) => !UNPAID.includes(s))).reduce((sum, s) => sum + (counts[s] ?? 0), 0);
+	const filtered = !!(f.q || f.ship || f.refund || f.from || f.to);
 
 	// chosen orders (by code) for a print run — kept across pages and tabs until printed or cleared
 	const [selected, setSelected] = useState<OrderCode[]>([]);
@@ -202,10 +212,27 @@ export default function OrdersView() {
 						</option>
 					))}
 				</select>
+				{can("refunds") && (
+					<select className="select" aria-label="استرداد" value={f.refund} onChange={(e) => setF({ refund: e.target.value })}>
+						<option value="">همه (استرداد)</option>
+						{optionsOf(REFUND_FILTER).map((o) => (
+							<option key={o.value} value={o.value}>
+								{o.label}
+							</option>
+						))}
+					</select>
+				)}
 				<JalaliDateInput value={f.from} onChange={(from) => setF({ from })} aria-label="از تاریخ" placeholder="از تاریخ" />
 				<JalaliDateInput value={f.to} onChange={(to) => setF({ to })} aria-label="تا تاریخ" placeholder="تا تاریخ" />
+				<select className="select" aria-label="ترتیب" value={f.sort} onChange={(e) => setF({ sort: e.target.value as AdminOrderSort })}>
+					{optionsOf(ORDER_SORT).map((o) => (
+						<option key={o.value} value={o.value}>
+							{o.label}
+						</option>
+					))}
+				</select>
 				{filtered && (
-					<button type="button" className="clear" onClick={() => setF({ q: "", ship: "", from: "", to: "" })}>
+					<button type="button" className="clear" onClick={() => setF({ q: "", ship: "", refund: "", from: "", to: "" })}>
 						حذف فیلترها
 					</button>
 				)}

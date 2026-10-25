@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import classNames from "classnames";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { TaxonomyEndpoints } from "@/app/(panel)/_api/taxonomyEndpoints";
 import { PANEL_ERRORS as ERROR_BEHAVIOUR } from "@/app/(panel)/_utils/apiError";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
 import Loading from "@/app/_components/common/loading/loading";
@@ -66,6 +67,16 @@ export default function ReviewsView() {
 		placeholderData: keepPreviousData,
 		meta: { showNotificationOnRefetch: true },
 	});
+	// 1.21.0 — a review's `product` is only filled in the shopper's own list; the page's products are read by id
+	// (published ones only — the rest show their id). Same key as the product picker's chips.
+	const productIds = [...new Set((reviews.data?.items ?? []).map((r) => r.productId))].sort((a, b) => a - b);
+	const products = useQuery({
+		queryKey: ["store", "productsByIds", productIds],
+		queryFn: () => withMappedError(() => TaxonomyEndpoints.getProductsByIds(productIds)),
+		enabled: productIds.length > 0,
+		placeholderData: keepPreviousData,
+		select: (list) => new Map(list.map((p) => [p.id, p])),
+	});
 
 	const removeReply = useMutation({
 		mutationFn: (r: AdminReview) => withMappedError(() => ReviewsEndpoints.removeReply(r.id)),
@@ -108,61 +119,71 @@ export default function ReviewsView() {
 			) : !reviews.error && !!reviews.data ? (
 				<>
 					<div className="stack" style={{ opacity: reviews.isFetching ? 0.6 : 1, transition: "opacity .2s" }}>
-						{reviews.data.items.map((r) => (
-							<article key={r.id} className={classNames("rv", { pending: r.status === "PENDING" })}>
-								<div className="h">
-									<span className="th">
-										{/* eslint-disable-next-line @next/next/no-img-element -- API image URL */}
-										{r.product?.imageUrl && <img src={r.product.imageUrl} alt="" />}
-									</span>
-									<span>
-										<b>
-											{r.authorName} <small className="ltr">· {r.contact}</small>
-										</b>
-										<small>
-											{r.product ? can("catalog") ? <Link href={`/products/${r.product.id}`}>{r.product.name}</Link> : r.product.name : `محصول #${r.productId}`}
-											{r.purchasedColor && ` · ${r.purchasedColor.name}`} · {formatDateTime(r.createdAt)}
-										</small>
-									</span>
-									<span className="end">
-										<Stars rating={r.rating} />
-										{r.isVerifiedBuyer && <Badge tone="SUCCESS">خریدار</Badge>}
-										<StatusTag value={r.status} labels={REVIEW_STATUS} tones={REVIEW_STATUS_TONE} />
-									</span>
-								</div>
-								<p className="txt">{r.text}</p>
-								{r.rejectionReason && <p className="note danger">دلیل رد: {r.rejectionReason}</p>}
-								{r.reply && (
-									<div className="reply">
-										<b>پاسخ کیوا · {formatDateTime(r.reply.createdAt)}</b>
-										{r.reply.text}
+						{reviews.data.items.map((r) => {
+							const p = products.data?.get(r.productId);
+							const name = r.product?.name ?? p?.name ?? `محصول #${toPersianDigits(r.productId)}`;
+							const image = r.product?.imageUrl ?? (p?.image ? p.image.thumbnailUrl || p.image.url : null);
+							return (
+								<article key={r.id} className={classNames("rv", { pending: r.status === "PENDING" })}>
+									<div className="h">
+										<span className="th">
+											{/* eslint-disable-next-line @next/next/no-img-element -- API image URL */}
+											{image && <img src={image} alt="" />}
+										</span>
+										<span>
+											<b>
+												{r.authorName} {r.contact && <small className="ltr">· {r.contact}</small>}
+											</b>
+											<small>
+												{can("catalog") ? <Link href={`/products/${r.productId}`}>{name}</Link> : name}
+												{r.purchasedColor && ` · ${r.purchasedColor.name}`} · {formatDateTime(r.createdAt)}
+											</small>
+										</span>
+										<span className="end">
+											<Stars rating={r.rating} />
+											{r.isVerifiedBuyer && <Badge tone="SUCCESS">خریدار</Badge>}
+											<StatusTag value={r.status} labels={REVIEW_STATUS} tones={REVIEW_STATUS_TONE} />
+										</span>
 									</div>
-								)}
-								<div className="acts">
-									{r.status !== "APPROVED" && (
-										<Button size="sm" onClick={() => setAction({ review: r, kind: "approve" })} iconStart={<Icon name="check" />}>
-											تأیید
-										</Button>
-									)}
-									{r.status !== "REJECTED" && (
-										<Button size="sm" variant="white" onClick={() => setAction({ review: r, kind: "reject" })} iconStart={<Icon name="ban" />}>
-											رد
-										</Button>
-									)}
-									<Button size="sm" variant="soft" onClick={() => setAction({ review: r, kind: "reply" })} iconStart={<Icon name="chat" />}>
-										{r.reply ? "ویرایش پاسخ" : "پاسخ"}
-									</Button>
+									<p className="txt" style={{ whiteSpace: "pre-line" }}>
+										{r.text}
+									</p>
+									{r.rejectionReason && <p className="note danger">دلیل رد: {r.rejectionReason}</p>}
 									{r.reply && (
-										<Button size="sm" variant="link" onClick={() => setUnreplying(r)} style={{ color: "var(--danger)" }}>
-											حذف پاسخ
-										</Button>
+										<div className="reply">
+											<b>پاسخ کیوا · {formatDateTime(r.reply.createdAt)}</b>
+											{r.reply.text}
+										</div>
 									)}
-									<span className="muted" style={{ marginInlineStart: "auto", fontSize: 12 }}>
-										{toPersianDigits(r.helpfulCount)} نفر «به دردم خورد»
-									</span>
-								</div>
-							</article>
-						))}
+									<div className="acts">
+										{r.status !== "APPROVED" && (
+											<Button size="sm" onClick={() => setAction({ review: r, kind: "approve" })} iconStart={<Icon name="check" />}>
+												تأیید
+											</Button>
+										)}
+										{r.status !== "REJECTED" && (
+											<Button size="sm" variant="white" onClick={() => setAction({ review: r, kind: "reject" })} iconStart={<Icon name="ban" />}>
+												رد
+											</Button>
+										)}
+										{/* «پاسخ کیوا» only under an approved review (1.21.0: else `422 INVALID_STATUS_TRANSITION`) */}
+										{r.status === "APPROVED" && (
+											<Button size="sm" variant="soft" onClick={() => setAction({ review: r, kind: "reply" })} iconStart={<Icon name="chat" />}>
+												{r.reply ? "ویرایش پاسخ" : "پاسخ"}
+											</Button>
+										)}
+										{r.reply && (
+											<Button size="sm" variant="link" onClick={() => setUnreplying(r)} style={{ color: "var(--danger)" }}>
+												حذف پاسخ
+											</Button>
+										)}
+										<span className="muted" style={{ marginInlineStart: "auto", fontSize: 12 }}>
+											{toPersianDigits(r.helpfulCount)} نفر «به دردم خورد»
+										</span>
+									</div>
+								</article>
+							);
+						})}
 					</div>
 					{!reviews.data.items.length && (
 						<div className="tbl-wrap">

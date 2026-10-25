@@ -24,7 +24,10 @@ const orderUrl = (code: OrderCode, rest = "") => `admin/orders/${encodeURICompon
 
 /** `/admin/orders*` (ADMIN, OPERATOR; refunds ADMIN only) — pure request functions, no React Query concepts. */
 export const OrdersEndpoints = {
-	/** The queue, with per-status counters for the tabs (`statusCounts`). */
+	/**
+	 * The queue, with per-status counters for the tabs (`statusCounts`: all 13, every filter but `status`). Without a
+	 * status, unpaid and expired orders are left out.
+	 */
 	getOrders: async (filters: AdminOrderFilters, page: number, size: number, signal?: AbortSignal) => {
 		const res = await httpClient.call<AdminOrderListResponse>({ method: "GET", url: "admin/orders", params: { ...filters, page, size }, signal });
 		return res.data;
@@ -41,19 +44,28 @@ export const OrdersEndpoints = {
 		return res.data;
 	},
 
-	/** Replaces the order's photo/video list (each tied to an order item and a view). */
+	/**
+	 * Replaces the photo **draft** (1–20 files, each tied to an order item and a view) — the shopper doesn't see it
+	 * until the sending is recorded. Only in `PROCESSING` with the photo step `WAITING`.
+	 */
 	setPreShipmentMedia: async (code: OrderCode, payload: PreShipmentMediaPayload) => {
 		const res = await httpClient.call<PreShipmentMedia>({ method: "PUT", url: orderUrl(code, "/pre-shipment-media"), data: payload });
 		return res.data;
 	},
 
-	/** To the shopper's messenger (or recorded as sent by hand) → `PHOTO_SENT` + SMS. */
+	/**
+	 * The operator sent the draft in the shopper's messenger by hand and records it here → `PHOTO_SENT`, photo `SENT`,
+	 * reply deadline +24h, SMS. A multi-line order needs a photo of every line (`422 PHOTOS_INCOMPLETE`).
+	 */
 	sendPreShipmentMedia: async (code: OrderCode, payload: SendMediaPayload) => {
 		const res = await httpClient.call<AdminOrder>({ method: "POST", url: orderUrl(code, "/pre-shipment-media/send"), data: payload });
 		return res.data;
 	},
 
-	/** Handed to the carrier → `SHIPPED` + SMS; a reservation group gets the same code on every order. */
+	/**
+	 * Handed to the carrier → `SHIPPED` + SMS, only from `PHOTO_SENT` once the shopper approved or the reply deadline
+	 * passed; a reservation group ships in one go with one code. On a `SHIPPED` order it corrects the code / time, no SMS.
+	 */
 	setShipment: async (code: OrderCode, payload: ShipmentPayload) => {
 		const res = await httpClient.call<AdminOrder>({ method: "PUT", url: orderUrl(code, "/shipment"), data: payload });
 		return res.data;
@@ -73,13 +85,16 @@ export const OrdersEndpoints = {
 		return res.data;
 	},
 
-	/** ADMIN only — full or partial, optionally tied to a return. */
+	/**
+	 * ADMIN only — full or partial, optionally tied to a return. Refunds are manual: the server only records it
+	 * (`PENDING`, expected within 72h) and a colleague transfers the money.
+	 */
 	createRefund: async (code: OrderCode, payload: RefundPayload) => {
 		const res = await httpClient.call<Refund>({ method: "POST", url: orderUrl(code, "/refunds"), data: payload });
 		return res.data;
 	},
 
-	/** ADMIN only — a refund moves on: `PROCESSING`, `COMPLETED` (with the bank's tracking number) or `FAILED`. */
+	/** ADMIN only — a refund moves on: `PROCESSING`, `COMPLETED` (always with the transfer's tracking number) or `FAILED`. */
 	updateRefund: async (refundId: number, payload: RefundUpdatePayload) => {
 		const res = await httpClient.call<Refund>({ method: "PATCH", url: `admin/refunds/${refundId}`, data: payload });
 		return res.data;

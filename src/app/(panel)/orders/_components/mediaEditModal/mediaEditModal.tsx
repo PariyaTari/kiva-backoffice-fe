@@ -21,9 +21,13 @@ type Row = { mediaId: string; url: string; thumb: string | null; video: boolean;
 
 type MediaEditModalProps = { order: AdminOrder; open: boolean; onClose: () => void };
 
+/** `PUT …/pre-shipment-media` takes 1 to 20 files. */
+const MAX_FILES = 20;
+
 /**
  * Steps 2–3 of FEATURES §3.2: upload the photos/videos of the very bag (`purpose=PRE_SHIPMENT`), tie each to its
- * order item and view, then save the whole list (`PUT …/pre-shipment-media`). Sending is a separate step.
+ * order item and view, then save the whole **draft** (`PUT …/pre-shipment-media`) — the shopper sees nothing until
+ * the sending is recorded, a separate step.
  */
 export default function MediaEditModal({ order, open, onClose }: MediaEditModalProps) {
 	return (
@@ -37,7 +41,7 @@ function MediaEditForm({ order, onClose }: Omit<MediaEditModalProps, "open">) {
 	const queryClient = useQueryClient();
 	const single = order.items.length === 1 ? order.items[0].id : null;
 	const [rows, setRows] = useState<Row[]>(() =>
-		order.preShipmentMediaDetail.items.map((m) => ({
+		(order.draftItems ?? []).map((m) => ({
 			mediaId: m.id,
 			url: m.url,
 			thumb: m.thumbnailUrl,
@@ -56,7 +60,7 @@ function MediaEditForm({ order, onClose }: Omit<MediaEditModalProps, "open">) {
 			),
 		meta: { showNotification: true },
 		onSuccess: () => {
-			toast(rows.length ? `${toPersianDigits(rows.length)} فایل به سفارش وصل شد` : "عکس‌های سفارش پاک شد", { icon: "check" });
+			toast(`پیش‌نویس ${toPersianDigits(rows.length)} عکس ذخیره شد؛ بعد از فرستادن برای مشتری، ارسال را ثبت کن`, { icon: "check" });
 			queryClient.invalidateQueries({ queryKey: ["orders"] });
 			onClose();
 		},
@@ -69,14 +73,19 @@ function MediaEditForm({ order, onClose }: Omit<MediaEditModalProps, "open">) {
 	});
 
 	const errors = fieldErrorsOf(save.error);
+	// 1.12.0 paths are dotted (`items.0.mediaId`); older ones bracketed
+	const rowError = (i: number) => errors[`items.${i}.mediaId`] || errors[`items.${i}.orderItemId`];
 
 	return (
 		<>
 			<ModalHead icon="camera" title="عکس‌های قبل از ارسال" subtitle={`${order.code} — از همان کیفی که برای مشتری کنار گذاشته شده`} />
 			<div className="m-body">
+				<p className="note">
+					پیش‌نویس است: مشتری تا وقتی ارسال را ثبت نکنی چیزی نمی‌بیند. حداکثر {toPersianDigits(MAX_FILES)} فایل
+					{order.items.length > 1 && "؛ برای هر کیف سفارش دست‌کم یک عکس با همان کیف لازم است"}.
+				</p>
 				<MediaUploader
 					purpose="PRE_SHIPMENT"
-					accept="image/*,video/*"
 					hint="عکس از چند زاویه (جلو، کنار، جزئیات، داخل) و اگر شد یک ویدیوی کوتاه"
 					onUploaded={(asset) =>
 						setRows((list) => [
@@ -126,9 +135,9 @@ function MediaEditForm({ order, onClose }: Omit<MediaEditModalProps, "open">) {
 								<button type="button" className="icon-btn" aria-label="حذف" onClick={() => setRows((list) => list.filter((_, k) => k !== i))}>
 									<Icon name="trash" />
 								</button>
-								{errors[`items[${i}].mediaId`] && (
+								{rowError(i) && (
 									<span className="err" style={{ gridColumn: "1/-1", color: "var(--danger)", fontSize: 12 }}>
-										{errors[`items[${i}].mediaId`]}
+										{rowError(i)}
 									</span>
 								)}
 							</div>
@@ -144,8 +153,8 @@ function MediaEditForm({ order, onClose }: Omit<MediaEditModalProps, "open">) {
 				<Button variant="white" onClick={onClose} disabled={save.isPending}>
 					انصراف
 				</Button>
-				<Button onClick={() => save.mutate()} isLoading={save.isPending}>
-					ذخیره‌ی عکس‌ها
+				<Button onClick={() => save.mutate()} isLoading={save.isPending} disabled={!rows.length || rows.length > MAX_FILES} title={rows.length > MAX_FILES ? `حداکثر ${toPersianDigits(MAX_FILES)} فایل` : undefined}>
+					ذخیره‌ی پیش‌نویس
 				</Button>
 			</div>
 		</>

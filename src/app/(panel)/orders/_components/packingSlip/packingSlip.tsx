@@ -47,17 +47,19 @@ function SlipSheet({ order: o }: { order: AdminOrder }) {
 			<div className="ps-grid">
 				<div className="ps-box">
 					<small>گیرنده</small>
-					<b>{a.recipientName}</b>
+					<b>{a.recipientName ?? "—"}</b>
 					<span className="ltr">{formatPhone(a.recipientPhone)}</span>
 				</div>
 				<div className="ps-box">
 					<small>نشانی</small>
 					<span>
-						{a.provinceName}، {a.cityName}، {a.addressLine}
+						{a.addressLine ? `${a.provinceName}، ${a.cityName}، ${a.addressLine}` : a.fullText}
 					</span>
-					<span>
-						کد پستی <b className="ltr">{toPersianDigits(a.postalCode)}</b>
-					</span>
+					{a.postalCode && (
+						<span>
+							کد پستی <b className="ltr">{toPersianDigits(a.postalCode)}</b>
+						</span>
+					)}
 				</div>
 			</div>
 

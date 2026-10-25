@@ -123,7 +123,9 @@ export const CANCEL_REASON = {
 	DELIVERY_TOO_LONG: "ارسال طول می‌کشد",
 	OTHER: "دلیل دیگر",
 } as const;
-export const REFUND_METHOD = { ORIGINAL_PAYMENT: "به همان کارت", BANK_TRANSFER: "انتقال بانکی (شبا)", STORE_CREDIT: "اعتبار کیوا" } as const;
+export const REFUND_METHOD = { ORIGINAL_PAYMENT: "به همان کارت (کارت‌به‌کارت)", BANK_TRANSFER: "انتقال بانکی (شبا)" } as const;
+export const PAYMENT_PURPOSE = { ORDER: "پرداخت سفارش", BALANCE: "پرداخت مانده" } as const;
+export const ORDER_SORT = { newest: "تازه‌ترین اول", oldest: "قدیمی‌ترین اول" } as const;
 export const REFUND_STATUS = { PENDING: "در انتظار", PROCESSING: "در حال انجام", COMPLETED: "انجام شد", FAILED: "ناموفق" } as const;
 export const REFUND_STATUS_TONE: Record<keyof typeof REFUND_STATUS, Tone> = { PENDING: "WARN", PROCESSING: "WARN", COMPLETED: "SUCCESS", FAILED: "DANGER" };
 export const MEDIA_STATUS = { WAITING: "منتظر عکس", SENT: "ارسال شد", APPROVED: "تأیید مشتری", CHANGE_REQUESTED: "درخواست تغییر" } as const;
@@ -195,6 +197,35 @@ export const CONTACT_TOPIC = {
 export const TICKET_STATUS = { OPEN: "باز", IN_PROGRESS: "در حال پیگیری", CLOSED: "بسته" } as const;
 export const TICKET_STATUS_TONE: Record<keyof typeof TICKET_STATUS, Tone> = { OPEN: "WARN", IN_PROGRESS: "CREAM", CLOSED: "DEFAULT" };
 export const REPLY_CHANNEL = { SMS: "پیامک", EMAIL: "ایمیل" } as const;
+export const GENDER = { FEMALE: "زن", MALE: "مرد", UNSPECIFIED: "نگفته" } as const;
+
+// ── newsletter / change log ──
+export const NEWSLETTER_STATUS = { ACTIVE: "عضو", UNSUBSCRIBED: "لغو شده" } as const;
+export const NEWSLETTER_STATUS_TONE: Record<keyof typeof NEWSLETTER_STATUS, Tone> = { ACTIVE: "SUCCESS", UNSUBSCRIBED: "DEFAULT" };
+/** `AuditEntityType` — `MEDIA` is never logged (uploads aren't), so it isn't offered as a filter. */
+export const AUDIT_ENTITY = {
+	PRODUCT: "محصول",
+	VARIANT: "رنگ محصول",
+	INVENTORY: "موجودی",
+	CATEGORY: "دسته",
+	COLOR: "رنگ",
+	MATERIAL: "متریال",
+	ORDER: "سفارش",
+	RETURN: "مرجوعی",
+	REFUND: "استرداد",
+	DISCOUNT_CODE: "کد تخفیف",
+	CAMPAIGN: "کمپین",
+	BANNER: "بنر",
+	ANNOUNCEMENT: "نوار اطلاعیه",
+	TESTIMONIAL: "پیام رضایت",
+	BLOG_POST: "مقاله",
+	FAQ: "سوالات متداول",
+	PAGE: "صفحه‌ی ثابت",
+	SETTINGS: "تنظیمات",
+	REVIEW: "نظر",
+	CONTACT_MESSAGE: "پیام تماس",
+	USER: "کاربر",
+} as const;
 
 // ── settings ──
 export const WEEKDAY = {

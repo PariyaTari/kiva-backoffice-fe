@@ -1,5 +1,5 @@
 /**
- * KIVA admin mock backend — the `/admin/*` part of kiva-openapi.yml (v1.4.0) plus sign-in, `/me` and the public
+ * KIVA admin mock backend — the `/admin/*` part of kiva-openapi.yml (v1.21.0) plus sign-in, `/me` and the public
  * reads the panel uses, in memory, seeded from the storefront's sample data. Every restart starts over.
  *
  *   npm run mock        → http://localhost:8090/api/v1
@@ -16,6 +16,7 @@ import { API, ApiError, ORIGIN, PORT, routes } from "./lib.mjs";
 import { userOf } from "./auth.mjs";
 import { mediaFile } from "./media.mjs";
 import "./admin/index.mjs";
+import { recordAudit } from "./admin/audit.mjs";
 
 const DELAY = Number(process.env.MOCK_DELAY ?? 180);
 
@@ -108,6 +109,8 @@ const server = http.createServer(async (req, res) => {
 		ctx.body = raw.length && !multipart ? JSON.parse(raw.toString("utf8")) : null;
 		ctx.multipart = multipart ? parseMultipart(raw, req.headers["content-type"]) : null;
 		const out = await r.handler(ctx);
+		// every successful panel write leaves a row in the change log (1.21.0)
+		recordAudit(ctx, req.method, path, out);
 		send(ctx.status, ctx.status === 204 ? undefined : out, ctx.headers);
 		console.log(`${req.method} ${url.pathname}${url.search} → ${ctx.status}`);
 	} catch (e) {

@@ -13,7 +13,9 @@ export type PanelSection =
 	| "content"
 	| "settings"
 	| "support"
-	| "assignRoles";
+	| "assignRoles"
+	| "newsletter"
+	| "auditLog";
 
 /** `ADMIN` is allowed everywhere and is not listed. */
 const ACCESS: Record<PanelSection, PanelRole[]> = {
@@ -29,6 +31,9 @@ const ACCESS: Record<PanelSection, PanelRole[]> = {
 	settings: [],
 	support: ["SUPPORT"],
 	assignRoles: [],
+	// e-mails are personal data, and the change log shows everyone's phone — ADMIN only
+	newsletter: [],
+	auditLog: [],
 };
 
 export const PANEL_ROLES: PanelRole[] = ["ADMIN", "CATALOG_MANAGER", "OPERATOR", "CONTENT_EDITOR", "SUPPORT"];

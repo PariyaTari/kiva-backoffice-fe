@@ -5,3 +5,4 @@ import "./marketing.mjs";
 import "./content.mjs";
 import "./support.mjs";
 import "./settings.mjs";
+import "./audit.mjs";

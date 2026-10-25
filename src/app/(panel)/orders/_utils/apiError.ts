@@ -28,3 +28,19 @@ export const isStaleOrderError = (e: ResultError | null | undefined) => e?.code 
 
 /** A change request's product is unpublished now (`GET /products/{id}` is storefront-only) — fall back to the bare id. */
 export const isStoreProductMissingError = (e: ResultError | null | undefined) => e?.code === "PRODUCT_NOT_FOUND";
+
+/**
+ * Shipping refused for a reason the modal explains in place (1.12.0): the shopper hasn't answered the photo and the
+ * deadline hasn't passed (`meta.feedbackDeadline`), or another order of the reservation group isn't ready (`meta.orderCodes`).
+ */
+export const isAwaitingFeedbackError = (e: ResultError | null | undefined) => e?.code === "AWAITING_CUSTOMER_FEEDBACK";
+export const isGroupNotReadyError = (e: ResultError | null | undefined) => e?.code === "GROUP_NOT_READY";
+
+/** A multi-line order's photos must cover every line (`meta.missingItemIds`). */
+export const isPhotosIncompleteError = (e: ResultError | null | undefined) => e?.code === "PHOTOS_INCOMPLETE";
+
+/**
+ * 1.21.0 — a return's refund raced someone else: the return already has a refund that has not failed
+ * (`RETURN_REFUND_EXISTS`), or it is no longer `RECEIVED` (`INVALID_STATUS_TRANSITION`). Re-read the order.
+ */
+export const isStaleReturnRefundError = (e: ResultError | null | undefined) => e?.code === "RETURN_REFUND_EXISTS" || e?.code === "INVALID_STATUS_TRANSITION";

@@ -20,12 +20,14 @@ export const newBlock = (type: BlogBlockType): EditableBlock => ({ key: `b${(seq
 type BlockEditorProps = {
 	blocks: EditableBlock[];
 	onChange: (blocks: EditableBlock[]) => void;
-	/** Server errors keyed `blocks[i].field`. */
+	/** Server errors keyed `blocks.{i}.{field}`. */
 	errors: Record<string, string>;
+	/** 1.21.0 — a «کارت محصول» whose product left the store (`AdminBlogPost.unavailableProductIds`): the storefront hides that block. */
+	unavailableProductIds?: number[];
 };
 
 /** The post body as ordered blocks (FEATURES §2.11): add, reorder, remove; each type has its own fields. */
-export default function BlockEditor({ blocks, onChange, errors }: BlockEditorProps) {
+export default function BlockEditor({ blocks, onChange, errors, unavailableProductIds = [] }: BlockEditorProps) {
 	const patch = (i: number, change: Partial<EditableBlock>) => onChange(blocks.map((b, k) => (k === i ? { ...b, ...change } : b)));
 	const move = (i: number, by: number) => {
 		const next = [...blocks];
@@ -33,7 +35,7 @@ export default function BlockEditor({ blocks, onChange, errors }: BlockEditorPro
 		next.splice(i + by, 0, row);
 		onChange(next);
 	};
-	const err = (i: number, field: string) => errors[`blocks[${i}].${field}`];
+	const err = (i: number, field: string) => errors[`blocks.${i}.${field}`];
 
 	return (
 		<div className="rows">
@@ -68,7 +70,14 @@ export default function BlockEditor({ blocks, onChange, errors }: BlockEditorPro
 							<HtmlField aria-label="متن نکته" value={b.html ?? ""} onChange={(e) => patch(i, { html: e.target.value })} error={err(i, "html")} style={{ minHeight: 80 }} />
 						</>
 					)}
-					{b.type === "PRODUCT" && <ProductPicker single value={b.productId ? [b.productId] : []} onChange={(ids) => patch(i, { productId: ids[0] ?? null })} error={err(i, "productId")} />}
+					{b.type === "PRODUCT" && (
+						<ProductPicker
+							single
+							value={b.productId ? [b.productId] : []}
+							onChange={(ids) => patch(i, { productId: ids[0] ?? null })}
+							error={err(i, "productId") || (!!b.productId && unavailableProductIds.includes(b.productId) && "این محصول دیگر در فروشگاه نیست و سایت این بلوک را نشان نمی‌دهد؛ محصول دیگری بگذار یا بلوک را حذف کن.")}
+						/>
+					)}
 					{b.type === "IMAGE" && (
 						<>
 							<SingleMediaField

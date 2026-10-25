@@ -18,7 +18,7 @@ type SingleMediaFieldProps = {
 };
 
 /** One image of an entity (category, banner, post cover, testimonial screenshot): the current one, replace, remove. */
-export default function SingleMediaField({ label, labelNote, purpose, value, onChange, error, hint, accept = "image/*" }: SingleMediaFieldProps) {
+export default function SingleMediaField({ label, labelNote, purpose, value, onChange, error, hint, accept }: SingleMediaFieldProps) {
 	return (
 		<div className={`field${error ? " error" : ""}`}>
 			<label>
@@ -38,7 +38,7 @@ export default function SingleMediaField({ label, labelNote, purpose, value, onC
 					</span>
 				</div>
 			) : (
-				<MediaUploader purpose={purpose} accept={accept} multiple={false} hint={hint} onUploaded={(a) => onChange({ id: a.id, url: a.url })} />
+				<MediaUploader purpose={purpose} accept={accept ?? "image/jpeg,image/png,image/webp"} multiple={false} hint={hint} onUploaded={(a) => onChange({ id: a.id, url: a.url })} />
 			)}
 			{error && <span className="err">{error}</span>}
 		</div>

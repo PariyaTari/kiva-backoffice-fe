@@ -1,4 +1,4 @@
-/** Shared building blocks of the contract (kiva-openapi.yml 1.4.0 · components/schemas) used across panel sections. */
+/** Shared building blocks of the contract (kiva-openapi.yml 1.12.0 · components/schemas) used across panel sections. */
 
 /** Integer Toman. */
 export type Money = number;
@@ -48,6 +48,14 @@ export type SeoMeta = {
 	noIndex?: boolean;
 	jsonLd?: Record<string, unknown> | null;
 };
+
+/**
+ * 1.12.0 — what a product, category or static page form may send as `seo`: title ≤ 70, description ≤ 170, `noIndex`.
+ * The server builds `canonicalUrl`, `ogImageUrl` and `jsonLd` itself (ignored if sent).
+ */
+export type SeoInput = Pick<SeoMeta, "title" | "description" | "noIndex">;
+
+export const toSeoInput = (seo: SeoMeta | null | undefined): SeoInput => ({ title: seo?.title || null, description: seo?.description || null, noIndex: !!seo?.noIndex });
 
 export type PhotoMessengerChannel = "RUBIKA" | "TELEGRAM" | "BALE";
 export type SocialChannel = PhotoMessengerChannel | "INSTAGRAM";

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import classNames from "classnames";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { PANEL_ERRORS as ERROR_BEHAVIOUR } from "@/app/(panel)/_utils/apiError";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
@@ -17,15 +18,22 @@ import Badge from "@/app/_components/ui/badge/badge";
 import Button from "@/app/_components/ui/button/button";
 import { useTableState } from "@/hooks/useTableState";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { BlogPostSummary } from "@/types/content.type";
+import { AdminBlogPost, BlogStatus } from "@/types/content.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
-import { formatDate } from "@/utils/format";
+import { formatDate, formatDateTime, relativeTime } from "@/utils/format";
 import { BLOG_STATUS, BLOG_STATUS_TONE } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 import { BlogEndpoints } from "../../_api/blogEndpoints";
 
-const COLUMNS: Column<BlogPostSummary>[] = [
+const TABS: { value: BlogStatus | ""; label: string }[] = [
+	{ value: "", label: "همه" },
+	{ value: "DRAFT", label: "پیش‌نویس" },
+	{ value: "PUBLISHED", label: "منتشرشده" },
+	{ value: "ARCHIVED", label: "آرشیو" },
+];
+
+const COLUMNS: Column<AdminBlogPost>[] = [
 	{
 		key: "post",
 		title: "مقاله",
@@ -52,24 +60,42 @@ const COLUMNS: Column<BlogPostSummary>[] = [
 		title: "وضعیت",
 		className: "nowrap",
 		render: (p) => (
-			<span style={{ display: "inline-flex", gap: 4 }}>
-				<StatusTag value={p.status ?? "PUBLISHED"} labels={BLOG_STATUS} tones={BLOG_STATUS_TONE} />
+			<span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+				<StatusTag value={p.status} labels={BLOG_STATUS} tones={BLOG_STATUS_TONE} />
+				{p.scheduled && <Badge tone="CREAM">زمان‌بندی‌شده</Badge>}
 				{p.isFeatured && <Badge tone="SALE">منتخب</Badge>}
+				{!!p.unavailableProductIds.length && (
+					<Badge tone="WARN" title="کارت محصولی که دیگر در فروشگاه نیست">
+						محصول برداشته‌شده
+					</Badge>
+				)}
 			</span>
 		),
 	},
 	{ key: "published", title: "انتشار", className: "nowrap muted", render: (p) => (p.publishedAt ? formatDate(p.publishedAt) : "—") },
+	{
+		key: "updated",
+		title: "آخرین ویرایش",
+		className: "nowrap",
+		render: (p) => (
+			<>
+				<span title={formatDateTime(p.updatedAt)}>{relativeTime(p.updatedAt)}</span>
+				{p.updatedBy && <span className="sub">{p.updatedBy}</span>}
+			</>
+		),
+	},
 ];
 
-/** `/blog` — the magazine's posts. Only published ones can be listed (FEATURES §7 #1); a new draft opens right after saving. */
+/** `/blog` — every post of the magazine (`GET /admin/blog/posts`: drafts, scheduled, archived too), newest edit first. */
 export default function BlogView() {
 	const router = useRouter();
-	const [f, setF] = useUrlFilters({ q: "", category: "" });
-	const { page, setPage, pageSize, setPageSize } = useTableState({ resetPageOn: [f.q, f.category] });
+	const [f, setF] = useUrlFilters({ status: "", q: "", category: "" });
+	const status = f.status as BlogStatus | "";
+	const { page, setPage, pageSize, setPageSize } = useTableState({ resetPageOn: [status, f.q, f.category] });
 
 	const posts = useQuery({
-		queryKey: ["blog", "list", { q: f.q, category: f.category, page, pageSize }],
-		queryFn: () => withMappedError(() => BlogEndpoints.getPosts(f.q, f.category, page, pageSize)),
+		queryKey: ["blog", "list", { status, q: f.q, category: f.category, page, pageSize }],
+		queryFn: () => withMappedError(() => BlogEndpoints.getPosts({ status: status || undefined, q: f.q, category: f.category }, page, pageSize)),
 		placeholderData: keepPreviousData,
 		meta: { showNotificationOnRefetch: true },
 	});
@@ -92,9 +118,13 @@ export default function BlogView() {
 					</Button>
 				}
 			/>
-			<p className="note" style={{ marginBottom: 14 }}>
-				فهرست ادمین در کانترکت نیست؛ این جدول از فهرست عمومی بلاگ است و پیش‌نویس‌ها و آرشیوها در آن دیده نمی‌شوند.
-			</p>
+			<div className="tabs bo-tabs" role="tablist">
+				{TABS.map((t) => (
+					<button key={t.value || "all"} type="button" role="tab" aria-selected={t.value === status} className={classNames({ on: t.value === status })} onClick={() => setF({ status: t.value })}>
+						{t.label}
+					</button>
+				))}
+			</div>
 			<div className="fbar">
 				<SearchInput value={f.q} onSearch={(q) => setF({ q })} placeholder="عنوان یا خلاصه" />
 				<select className="select" aria-label="دسته" value={f.category} onChange={(e) => setF({ category: e.target.value })}>

@@ -92,7 +92,7 @@ function checkProduct(b, { creating, self }) {
 		.need(!b.seo?.description || String(b.seo.description).length <= 170, "seo.description", "توضیح SEO حداکثر ۱۷۰ حرف.")
 		.need(b.maxPerOrder == null || (Number.isInteger(b.maxPerOrder) && b.maxPerOrder >= 1), "maxPerOrder", "سقف خرید حداقل ۱.")
 		.need(!b.status || ["DRAFT", "ACTIVE", "ARCHIVED"].includes(b.status), "status", "وضعیت معتبر نیست.");
-	if (creating) (b.variants || []).forEach((v, i) => c.need(!!colorByKey(v.colorKey), `variants[${i}].colorKey`, "رنگ رو انتخاب کن."));
+	if (creating) (b.variants || []).forEach((v, i) => c.need(!!colorByKey(v.colorKey), `variants.${i}.colorKey`, "رنگ رو انتخاب کن."));
 	c.done();
 	if (products.some((p) => p !== self && p.slug === b.slug)) fail(409, "DUPLICATE_SLUG", "این slug قبلاً برای محصول دیگری ثبت شده.", { errors: [{ field: "slug", code: "DUPLICATE_SLUG", message: "این slug تکراریه." }] });
 	if (b.sku && products.some((p) => p !== self && p.sku === b.sku)) fail(409, "DUPLICATE_SKU", "این SKU قبلاً ثبت شده.", { errors: [{ field: "sku", code: "DUPLICATE_SKU", message: "این SKU تکراریه." }] });
@@ -103,10 +103,10 @@ function checkProduct(b, { creating, self }) {
 }
 const mediaOf = (list, bagType, colorKey) =>
 	(list || []).map((m, i) => {
-		if (!MEDIA_VIEWS.includes(m.view)) fail(400, "VALIDATION_ERROR", "زاویه‌ی عکس معتبر نیست.", { errors: [{ field: `media[${i}].view`, code: "INVALID", message: "زاویه‌ی عکس معتبر نیست." }] });
+		if (!MEDIA_VIEWS.includes(m.view)) fail(400, "VALIDATION_ERROR", "زاویه‌ی عکس معتبر نیست.", { errors: [{ field: `media.${i}.view`, code: "INVALID", message: "زاویه‌ی عکس معتبر نیست." }] });
 		const a = assets.get(m.mediaId);
 		const known = a || String(m.mediaId).startsWith("bag_");
-		if (!known) fail(400, "VALIDATION_ERROR", "یکی از فایل‌ها پیدا نشد؛ دوباره آپلودش کن.", { errors: [{ field: `media[${i}].mediaId`, code: "MEDIA_NOT_FOUND", message: "فایل پیدا نشد." }] });
+		if (!known) fail(400, "VALIDATION_ERROR", "یکی از فایل‌ها پیدا نشد؛ دوباره آپلودش کن.", { errors: [{ field: `media.${i}.mediaId`, code: "MEDIA_NOT_FOUND", message: "فایل پیدا نشد." }] });
 		return { mediaId: m.mediaId, view: m.view, sortOrder: m.sortOrder ?? i, isPrimary: !!m.isPrimary, alt: m.alt ?? null, url: a?.url ?? bagImage(bagType, colorKey, i), type: a?.type ?? "IMAGE" };
 	});
 function applyProduct(p, b) {

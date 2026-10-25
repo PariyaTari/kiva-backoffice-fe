@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { Icon } from "@/app/_components/icon/icons";
 import StatusTag from "@/app/_components/panel/statusTag/statusTag";
+import { useCan } from "@/hooks/useCan";
 import { AdminOrder } from "@/types/order.type";
 import { toPersianDigits } from "@/utils/digits";
-import { formatDateTime, formatPhone, relativeTime } from "@/utils/format";
+import { DELETED_ACCOUNT, formatDateTime, formatPhone, relativeTime } from "@/utils/format";
 import { RETURN_REASON, RETURN_STATUS, RETURN_STATUS_TONE, labelOf } from "@/utils/labels";
 
 /** The side column of an order: who, where, how it travels, its reservation group and its returns. */
@@ -14,9 +15,12 @@ type OrderSideProps = {
 };
 
 export default function OrderSide({ order, onRefundReturn }: OrderSideProps) {
+	const can = useCan();
 	const c = order.customer;
 	const s = order.shipment;
 	const g = order.shipmentGroup;
+	// 1.21.0 — a deleted account leaves the order anonymised: no phone, and no customer page to open
+	const deleted = !c.phone;
 
 	return (
 		<>
@@ -24,18 +28,30 @@ export default function OrderSide({ order, onRefundReturn }: OrderSideProps) {
 				<h3>
 					<Icon name="user" /> مشتری
 				</h3>
-				<dl className="kv">
-					<dt>نام</dt>
-					<dd>{c.fullName}</dd>
-					<dt>موبایل</dt>
-					<dd className="ltr">{formatPhone(c.phone)}</dd>
-					<dt>سفارش‌ها</dt>
-					<dd>
-						<Link href={`/orders?q=${c.phone}`} style={{ color: "var(--purple)" }}>
-							{toPersianDigits(c.ordersCount)} سفارش
-						</Link>
-					</dd>
-				</dl>
+				{deleted ? (
+					<p className="note">{DELETED_ACCOUNT} — نام، موبایل و نشانی این سفارش پاک شده‌اند؛ مبلغ‌ها، اقلام و کد رهگیری مانده‌اند.</p>
+				) : (
+					<dl className="kv">
+						<dt>نام</dt>
+						<dd>
+							{can("support") ? (
+								<Link href={`/customers/${c.id}`} style={{ color: "var(--purple)" }}>
+									{c.fullName || "بدون نام"}
+								</Link>
+							) : (
+								c.fullName || "بدون نام"
+							)}
+						</dd>
+						<dt>موبایل</dt>
+						<dd className="ltr">{formatPhone(c.phone)}</dd>
+						<dt>سفارش‌ها</dt>
+						<dd>
+							<Link href={`/orders?q=${c.phone}`} style={{ color: "var(--purple)" }}>
+								{toPersianDigits(c.ordersCount)} سفارش
+							</Link>
+						</dd>
+					</dl>
+				)}
 				{order.customerNote && <p className="note cream" style={{ marginTop: 12 }}>یادداشت مشتری: {order.customerNote}</p>}
 			</section>
 
@@ -45,11 +61,11 @@ export default function OrderSide({ order, onRefundReturn }: OrderSideProps) {
 				</h3>
 				<dl className="kv">
 					<dt>نام</dt>
-					<dd>{order.address.recipientName}</dd>
+					<dd>{order.address.recipientName ?? "—"}</dd>
 					<dt>موبایل</dt>
 					<dd className="ltr">{formatPhone(order.address.recipientPhone)}</dd>
 					<dt>کد پستی</dt>
-					<dd className="ltr">{toPersianDigits(order.address.postalCode)}</dd>
+					<dd className="ltr">{order.address.postalCode ? toPersianDigits(order.address.postalCode) : "—"}</dd>
 				</dl>
 				<p style={{ fontSize: 13.5, marginTop: 8, lineHeight: 2 }}>{order.address.fullText}</p>
 			</section>

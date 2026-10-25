@@ -21,10 +21,14 @@ export function formatDate(value: string | number | Date, options?: Intl.DateTim
 /** Two-digit Persian number for countdowns (`۰۷`). */
 export const pad2 = (n: number) => toPersianDigits(String(n).padStart(2, "0"));
 
-/** `09121234567` → `۰۹۱۲ ۱۲۳ ۴۵۶۷`. */
-export function formatPhone(phone: string): string {
+/** `09121234567` → `۰۹۱۲ ۱۲۳ ۴۵۶۷`; no phone (an anonymised order, a deleted account) → «—». */
+export function formatPhone(phone: string | null | undefined): string {
+	if (!phone) return "—";
 	return toPersianDigits(phone.replace(/(\d{4})(\d{3})(\d{4})/, "$1 $2 $3"));
 }
+
+/** What the panel calls a shopper whose account was deleted (1.21.0: name and phone are `null`). */
+export const DELETED_ACCOUNT = "حساب حذف‌شده";
 
 /** `۱۴۰۵/۰۷/۱۸ — ۱۴:۳۰` (Tehran time). */
 export function formatDateTime(value: string | number | Date | null | undefined): string {

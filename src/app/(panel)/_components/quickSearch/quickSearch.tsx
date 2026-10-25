@@ -16,7 +16,7 @@ import Modal from "@/app/_components/ui/modal/modal";
 import { useCan } from "@/hooks/useCan";
 import { ApiErrorView, toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
-import { formatPhone, formatToman } from "@/utils/format";
+import { DELETED_ACCOUNT, formatPhone, formatToman } from "@/utils/format";
 import { ORDER_STATUS, ORDER_STATUS_TONE, PRODUCT_STATUS, PRODUCT_STATUS_TONE } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 
@@ -108,7 +108,7 @@ function SearchBox({ onClose }: { onClose: () => void }) {
 	});
 	const customers = useQuery({
 		queryKey: ["customers", "quickSearch", term],
-		queryFn: ({ signal }) => withMappedError(() => CustomersEndpoints.getCustomers(term, 1, LIMIT, signal)),
+		queryFn: ({ signal }) => withMappedError(() => CustomersEndpoints.getCustomers({ q: term }, 1, LIMIT, signal)),
 		enabled: ready && can("support"),
 		placeholderData: keepPreviousData,
 		meta: { showNotificationOnRefetch: true },
@@ -137,7 +137,13 @@ function SearchBox({ onClose }: { onClose: () => void }) {
 					<>
 						<b className="ltr">{o.code}</b>
 						<span>
-							{o.customerName} · <span className="ltr">{formatPhone(o.customerPhone)}</span>
+							{o.customerName ?? (o.customerPhone ? "—" : DELETED_ACCOUNT)}
+							{o.customerPhone && (
+								<>
+									{" · "}
+									<span className="ltr">{formatPhone(o.customerPhone)}</span>
+								</>
+							)}
 						</span>
 						<small>{formatToman(o.payable)}</small>
 						<StatusTag value={o.status} labels={ORDER_STATUS} tones={ORDER_STATUS_TONE} />
@@ -178,10 +184,9 @@ function SearchBox({ onClose }: { onClose: () => void }) {
 			error: customersError,
 			onRetry: () => customers.refetch(),
 			fetching: customers.isFetching,
-			// no customer page in the contract (FEATURES §7) — the list, filtered to them
 			rows: customers.data?.items.map((c) => ({
 				key: String(c.id),
-				href: `/customers?q=${encodeURIComponent(c.phone)}`,
+				href: `/customers/${c.id}`,
 				body: (
 					<>
 						<b>{c.fullName || "بی‌نام"}</b>

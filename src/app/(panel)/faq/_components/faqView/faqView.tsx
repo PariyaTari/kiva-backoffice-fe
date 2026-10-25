@@ -15,7 +15,7 @@ import Input from "@/app/_components/ui/input/input";
 import Switch from "@/app/_components/ui/switch/switch";
 import { STORE_REFRESH_MINUTES } from "@/config/global";
 import { toast } from "@/store/notification.store";
-import { FaqGroup, FaqItem } from "@/types/content.type";
+import { FaqGroup, FaqGroupInput, FaqItemInput } from "@/types/content.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
 import { onSiteWithin } from "@/utils/format";
@@ -25,7 +25,39 @@ import { FaqEndpoints } from "../../_api/faqEndpoints";
 
 /** Anchors the storefront and its footer link to — renaming them breaks those links (FEATURES §2.12). */
 const LINKED_ANCHORS = ["reserve", "shipping", "return"];
+/** `PUT /admin/faq/groups` caps (`FAQ_TOO_MANY`). */
+const MAX_GROUPS = 20;
+const MAX_QUESTIONS = 50;
+const ANCHOR = /^[a-z][a-z0-9-]{1,30}$/;
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** What the form edits of a saved group — order is the array order, so `sortOrder` and the highlights are not kept. */
+const toInput = (g: FaqGroup): FaqGroupInput => ({
+	id: g.id,
+	name: g.name,
+	icon: g.icon,
+	isSignature: g.isSignature,
+	questions: g.questions.map((q) => ({ id: q.id, question: q.question, answer: q.answer })),
+});
+
+/** The tree's own problems keyed like the server's paths (`2.name`, `2.questions.0.answer`). */
+function treeProblems(groups: FaqGroupInput[]): Record<string, string> {
+	const e: Record<string, string> = {};
+	const ids = groups.map((g) => g.id);
+	groups.forEach((g, gi) => {
+		if (!ANCHOR.test(g.id)) e[`${gi}.id`] = "حروف کوچک لاتین، رقم و خط تیره؛ با حرف شروع شود (۲ تا ۳۱).";
+		else if (ids.indexOf(g.id) !== gi) e[`${gi}.id`] = "این anchor تکراری است.";
+		if (!g.name.trim()) e[`${gi}.name`] = "نام گروه را بنویس.";
+		else if (g.name.length > 60) e[`${gi}.name`] = "حداکثر ۶۰ حرف.";
+		if (g.questions.length > MAX_QUESTIONS) e[`${gi}.questions`] = "حداکثر ۵۰ سؤال در هر گروه.";
+		g.questions.forEach((q, qi) => {
+			if (!q.question.trim()) e[`${gi}.questions.${qi}.question`] = "متن سؤال را بنویس.";
+			else if (q.question.length > 300) e[`${gi}.questions.${qi}.question`] = "حداکثر ۳۰۰ حرف.";
+			if (!q.answer.replace(/<[^>]*>/g, "").trim()) e[`${gi}.questions.${qi}.answer`] = "پاسخ را بنویس.";
+		});
+	});
+	return e;
+}
 
 function moved<T>(list: T[], i: number, by: number): T[] {
 	const next = [...list];
@@ -34,18 +66,20 @@ function moved<T>(list: T[], i: number, by: number): T[] {
 	return next;
 }
 
-/** `/faq` — groups (anchor, name, icon, «امضای کیوا») and their questions, in order; saved as one list. */
+/** `/faq` — groups (anchor, name, icon, «امضای کیوا») and their questions, in order; saved as one whole tree. */
 export default function FaqView() {
 	const queryClient = useQueryClient();
 	const current = useQuery({
 		queryKey: ["faq", "groups"],
 		queryFn: () => withMappedError(() => FaqEndpoints.getGroups()),
+		select: (list) => list.map(toInput),
 		meta: { showNotificationOnRefetch: true },
 	});
 
-	const [base, setBase] = useState<FaqGroup[] | null>(null);
-	const [groups, setGroups] = useState<FaqGroup[]>([]);
+	const [base, setBase] = useState<FaqGroupInput[] | null>(null);
+	const [groups, setGroups] = useState<FaqGroupInput[]>([]);
 	const [openGroup, setOpenGroup] = useState<number | null>(0);
+	const [touched, setTouched] = useState(false);
 	const dirty = base !== null && !same(groups, base);
 	if (current.data && !dirty && !same(current.data, base)) {
 		setBase(current.data);
@@ -55,21 +89,36 @@ export default function FaqView() {
 	const save = useMutation({
 		mutationFn: () =>
 			withMappedError(() =>
-				FaqEndpoints.replaceAll(groups.map((g, i) => ({ ...g, sortOrder: i + 1, questions: g.questions.map((q, k) => ({ id: q.id, question: q.question.trim(), answer: q.answer, sortOrder: k + 1 })) }))),
+				FaqEndpoints.replaceAll(groups.map((g) => ({ ...g, name: g.name.trim(), questions: g.questions.map((q) => ({ id: q.id, question: q.question.trim(), answer: q.answer })) }))),
 			),
 		meta: { showNotification: true },
 		onSuccess: (saved) => {
 			toast(`سوالات متداول ذخیره شد — ${onSiteWithin(STORE_REFRESH_MINUTES.faq)}`, { icon: "check" });
-			setBase(saved);
-			setGroups(saved);
+			const next = saved.map(toInput);
+			setBase(next);
+			setGroups(next);
+			setTouched(false);
 			queryClient.invalidateQueries({ queryKey: ["faq"] });
 		},
 	});
 
-	const patchGroup = (i: number, change: Partial<FaqGroup>) => setGroups((l) => l.map((g, k) => (k === i ? { ...g, ...change } : g)));
-	const patchQuestion = (gi: number, qi: number, change: Partial<FaqItem>) =>
+	const patchGroup = (i: number, change: Partial<FaqGroupInput>) => setGroups((l) => l.map((g, k) => (k === i ? { ...g, ...change } : g)));
+	const patchQuestion = (gi: number, qi: number, change: Partial<FaqItemInput>) =>
 		setGroups((l) => l.map((g, k) => (k === gi ? { ...g, questions: g.questions.map((q, j) => (j === qi ? { ...q, ...change } : q)) } : g)));
-	const errors = fieldErrorsOf(save.error);
+	const local = treeProblems(groups);
+	const server = fieldErrorsOf(save.error);
+	// the server's paths are `{index}.…` (1.12.0); a group with a problem opens to show it
+	const errors: Record<string, string> = { ...server, ...(touched ? local : {}) };
+	const submit = () => {
+		setTouched(true);
+		const firstBad = Object.keys(local)[0];
+		if (firstBad) {
+			setOpenGroup(Number(firstBad.split(".")[0]));
+			toast("چند فیلد را باید درست کنی", { type: "error" });
+			return;
+		}
+		save.mutate();
+	};
 	const currentError = toErrorView(ERROR_BEHAVIOUR, current.error, "دریافت سوالات متداول با خطا مواجه شد.");
 	const renamed = (base ?? []).filter((g) => LINKED_ANCHORS.includes(g.id) && !groups.some((x) => x.id === g.id)).map((g) => g.id);
 
@@ -79,7 +128,10 @@ export default function FaqView() {
 
 	return (
 		<>
-			<PageHead title="سوالات متداول" subtitle="گروه‌ها و سؤال‌ها به همین ترتیب در `/faq` نمایش داده می‌شوند؛ ذخیره کل لیست را جایگزین می‌کند." />
+			<PageHead
+				title="سوالات متداول"
+				subtitle={`گروه‌ها و سؤال‌ها به همین ترتیب در «/faq» نمایش داده می‌شوند؛ حداکثر ${toPersianDigits(MAX_GROUPS)} گروه و ${toPersianDigits(MAX_QUESTIONS)} سؤال در هر گروه. ذخیره کل لیست را جایگزین می‌کند.`}
+			/>
 			<div className="rows">
 				{groups.map((g, gi) => (
 					<div key={gi} className="row-card">
@@ -107,18 +159,19 @@ export default function FaqView() {
 						{openGroup === gi && (
 							<div className="stack">
 								<div className="form-grid">
-									<Input label="نام گروه" value={g.name} onChange={(e) => patchGroup(gi, { name: e.target.value })} error={errors[`[${gi}].name`]} />
+									<Input label="نام گروه" maxLength={60} value={g.name} onChange={(e) => patchGroup(gi, { name: e.target.value })} error={errors[`${gi}.name`]} />
 									<Input
 										label="شناسه (anchor)"
 										direction="ltr"
+										maxLength={31}
 										value={g.id}
 										onChange={(e) => patchGroup(gi, { id: e.target.value.toLowerCase().replace(/\s+/g, "-") })}
-										error={errors[`[${gi}].id`]}
+										error={errors[`${gi}.id`]}
 										hint={LINKED_ANCHORS.includes(base?.[gi]?.id ?? "") ? "سایت به این anchor لینک داده؛ عوضش نکن." : `/faq#${g.id}`}
 									/>
 								</div>
-								<IconSelect value={g.icon} onChange={(icon) => patchGroup(gi, { icon: icon ?? "info" })} />
-								<Switch label="تگ «امضای کیوا»" checked={g.isSignature} onChange={(e) => patchGroup(gi, { isSignature: e.target.checked })} />
+								<IconSelect value={g.icon ?? null} onChange={(icon) => patchGroup(gi, { icon })} />
+								<Switch label="تگ «امضای کیوا»" checked={!!g.isSignature} onChange={(e) => patchGroup(gi, { isSignature: e.target.checked })} />
 								{g.questions.map((q, qi) => (
 									<div key={qi} className="icard" style={{ padding: 14, display: "grid", gap: 10 }}>
 										<div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -141,17 +194,23 @@ export default function FaqView() {
 												</button>
 											</span>
 										</div>
-										<Input aria-label="سؤال" value={q.question} onChange={(e) => patchQuestion(gi, qi, { question: e.target.value })} error={errors[`[${gi}].questions[${qi}].question`]} />
+										<Input aria-label="سؤال" maxLength={300} value={q.question} onChange={(e) => patchQuestion(gi, qi, { question: e.target.value })} error={errors[`${gi}.questions.${qi}.question`]} />
 										<HtmlField
 											aria-label="پاسخ (HTML)"
 											value={q.answer}
 											onChange={(e) => patchQuestion(gi, qi, { answer: e.target.value })}
-											error={errors[`[${gi}].questions[${qi}].answer`]}
+											error={errors[`${gi}.questions.${qi}.answer`]}
 											style={{ minHeight: 80 }}
 										/>
 									</div>
 								))}
-								<button type="button" className="add-row" onClick={() => patchGroup(gi, { questions: [...g.questions, { question: "", answer: "<p></p>" }] })}>
+								{errors[`${gi}.questions`] && <p className="note danger">{errors[`${gi}.questions`]}</p>}
+								<button
+									type="button"
+									className="add-row"
+									disabled={g.questions.length >= MAX_QUESTIONS}
+									onClick={() => patchGroup(gi, { questions: [...g.questions, { id: null, question: "", answer: "<p></p>" }] })}
+								>
 									<Icon name="plus" /> افزودن سؤال
 								</button>
 							</div>
@@ -161,6 +220,7 @@ export default function FaqView() {
 				<button
 					type="button"
 					className="add-row"
+					disabled={groups.length >= MAX_GROUPS}
 					onClick={() => {
 						setGroups((l) => [...l, { id: "", name: "", icon: "info", isSignature: false, questions: [] }]);
 						setOpenGroup(groups.length);
@@ -178,7 +238,7 @@ export default function FaqView() {
 						برگرداندن
 					</Button>
 				)}
-				<Button size="sm" onClick={() => save.mutate()} isLoading={save.isPending} disabled={!dirty}>
+				<Button size="sm" onClick={submit} isLoading={save.isPending} disabled={!dirty}>
 					ذخیره‌ی سوالات
 				</Button>
 			</div>

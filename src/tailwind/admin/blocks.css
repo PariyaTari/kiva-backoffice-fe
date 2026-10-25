@@ -105,3 +105,15 @@
 /* return receipt rows (returns) */
 .rcpt-row{display:grid;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r)}
 .rcpt-row b small{font-weight:500;color:var(--ink-50)}
+
+/* change log: «field: from → to» under a row (audit-log, the history cards) */
+.chg{display:grid;gap:3px;margin-top:6px;font-size:12px;color:var(--ink-70)}
+.chg > span{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline}
+.chg .f{color:var(--ink-50)}
+.chg .v{background:var(--lilac-50);border-radius:var(--r-xs);padding:0 6px;overflow-wrap:anywhere}
+.chg .v.old{background:none;color:var(--ink-50);text-decoration:line-through}
+
+/* a customer's saved addresses (customers/[id]) */
+.addr-list{display:grid;gap:10px}
+.addr-list li{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;font-size:13px;display:grid;gap:4px}
+.addr-list li b{display:flex;gap:6px;align-items:center;flex-wrap:wrap}

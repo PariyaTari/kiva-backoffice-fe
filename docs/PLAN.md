@@ -5,7 +5,7 @@
 > مراجع: **`D:\pariya\kiva-backoffice-fe\kiva-openapi.yml` (1.5.0)** از جلسه‌ی ۳ (کپی یکسان در `kiva-fe`؛ نسخه‌ی 1.4.0 در git فروشگاه)، بخش `/admin/*` · `D:\pariya\kiva-fe\docs\FEATURES.md` (بخش‌های پنل، نقش‌ها، چرخه‌ها، شکاف‌ها) · `D:\pariya\kiva-fe\README.md`
 > ساختار کد: عین `kiva-fe` (Next.js 16 App Router، TS، Tailwind 3، TanStack Query v5، Zustand، axios). فچ: اسکیل `data-fetching` (+ `error-ui`). ظاهر: دیزاین‌سیستم کیوا (`src/tailwind/kiva/*` = `kiva/assets/kiva.css`) و الگوی پنل حساب کاربری فروشگاه (`account.html`: منوی کناری `.snav`، کارت‌ها، `.seg`، `.tag`، مودال، توست).
 
-> **وضعیت (جلسه‌ی ۳، در حال انجام):** فازهای ۰ تا ۱۱ انجام و تست شده (جلسه‌ی ۱ و ۲؛ کاربر تا `c609eab` کامیت کرده). کانترکت به **1.5.0** رسید و بیشتر شکاف‌های §۷ را پر کرد ← **فاز ۱۲**. کار بعدی = اولین ردیف ⬜/🔶 جدول فاز ۱۲.
+> **وضعیت (جلسه‌ی ۴، ۳ آبان ۱۴۰۵):** کانترکت **1.21.0** است (`kiva-openapi.yml` همین پروژه). فازهای ۰ تا ۱۳ انجام و تست شده؛ هر ۸۰ متد `/admin/*` صدا زده می‌شود و mock همه را دارد. تغییرات جلسه‌های ۳–۴ هنوز کامیت نشده‌اند. کار بعدی: «کارهای باز» پایین.
 
 ## ⏯ ادامه در چت جدید — اول این را بخوان
 
@@ -196,13 +196,28 @@ kiva-backoffice-fe/
 | 12.2 | **پیگیری استرداد** (فقط ADMIN): `PATCH /admin/refunds/{id}` (در حال انجام / انجام شد با شماره‌ی پیگیری / ناموفق + یادداشت برای مشتری)؛ `Refund.returnId/createdAt/statusNote`. mock | ✅ |
 | 12.3 | **چرخه‌ی کامل مرجوعی:** `AdminReturnRequest` (مشتری، شبا، `pickup`، `receipt`، `allowedTransitions`، دلیل رد/بستن)؛ در `/returns`: زمان‌بندی جمع‌آوری (`PUT …/pickup`)، رسیدن به انبار با تعداد برگشتی به موجودی (`POST …/receipt`)، بستن بدون استرداد (`POST …/close`)، ثبت استرداد با `returnId` (ADMIN)؛ تب‌های وضعیت؛ برداشتن هشدار §۷ #۸. mock | ✅ |
 | 12.4 | **کاتالوگ:** `AdminCategory.imageMediaId` در فرم دسته؛ حذف رنگ (`IN_USE`)؛ متریال‌ها از `GET /admin/materials` + ویرایش + حذف؛ برداشتن هشدارهای §۷ #۶. mock | ✅ |
-| 12.5 | **صف «موجود شد خبرم کن»** `/stock-alerts` (ADMIN، CATALOG_MANAGER): `GET /admin/stock-alerts` (فیلتر محصول و «هنوز ناموجود»)، لینک به محصول و مودال موجودی؛ منو. mock | ⬜ |
-| 12.6 | **بازاریابی:** کمپین با `AdminCampaign.productIds` + حذف؛ اطلاعیه از `GET /admin/announcements` (زمان‌بندی‌شده‌ها دیگر پاک نمی‌شوند)؛ پیام رضایت از `GET /admin/testimonials` (منتشرنشده‌ها، فیلتر، صفحه‌بندی، `screenshotMediaId`)؛ برداشتن هشدارهای شکاف. mock | ⬜ |
-| 12.7 | **محتوا:** FAQ از `GET /admin/faq/groups`؛ صفحه‌ها از `GET /admin/pages` (به‌جای slugهای شناخته‌شده). mock | ⬜ |
-| 12.8 | **مشترکین خبرنامه** `/newsletter` (فقط ADMIN): `GET /admin/newsletter/subscriptions` (وضعیت، جستجوی ایمیل، شمار فعال‌ها، CSV). mock | ⬜ |
-| 12.9 | **صفحه‌ی مشتری** `/customers/[id]`: `GET /admin/customers/{id}` (پروفایل، آدرس‌ها، آخرین سفارش‌ها، نقش‌ها)؛ لینک از لیست مشتری، جستجوی سریع، سفارش و مرجوعی. mock | ⬜ |
-| 12.10 | **لاگ تغییرات** `/audit-log` (فقط ADMIN): فیلتر نوع/شناسه/کاربر/بازه، ردیف با «از ← به»؛ کارت «تاریخچه‌ی تغییرات» در صفحه‌ی سفارش و محصول برای ADMIN. mock که هر نوشتن موفق را ثبت می‌کند | ⬜ |
-| 12.11 | جمع‌بندی: نقش‌ها/منو، README، «کارهای باز» (شکاف‌های باقی‌مانده)، `tsc` + `eslint` + `next build`، تست نقش‌ها | ⬜ |
+| 12.5 | **صف «موجود شد خبرم کن»** `/stock-alerts` (ADMIN، CATALOG_MANAGER): `GET /admin/stock-alerts` (فیلتر محصول و «هنوز ناموجود»)، لینک به محصول و مودال موجودی؛ منو. mock | ✅ |
+| 12.6 | **بازاریابی:** کمپین با `AdminCampaign.productIds` + حذف؛ اطلاعیه از `GET /admin/announcements` (زمان‌بندی‌شده‌ها دیگر پاک نمی‌شوند)؛ پیام رضایت از `GET /admin/testimonials` (منتشرنشده‌ها، فیلتر، صفحه‌بندی، `screenshotMediaId`)؛ برداشتن هشدارهای شکاف. mock (جلسه‌ی ۴) | ✅ |
+| 12.7 | **محتوا:** FAQ از `GET /admin/faq/groups`؛ صفحه‌ها از `GET /admin/pages` (به‌جای slugهای شناخته‌شده). mock (جلسه‌ی ۴) | ✅ |
+| 12.8 | **مشترکین خبرنامه** `/newsletter` (فقط ADMIN): `GET /admin/newsletter/subscriptions` (وضعیت، جستجوی ایمیل، شمار فعال‌ها، CSV). mock | ✅ |
+| 12.9 | **صفحه‌ی مشتری** `/customers/[id]`: `GET /admin/customers/{id}` (پروفایل، آدرس‌ها، آخرین سفارش‌ها، نقش‌ها)؛ لینک از لیست مشتری، جستجوی سریع، سفارش و مرجوعی. mock | ✅ |
+| 12.10 | **لاگ تغییرات** `/audit-log` (فقط ADMIN): فیلتر نوع/شناسه/کاربر/بازه، ردیف با «از ← به»؛ کارت «تاریخچه‌ی تغییرات» در صفحه‌ی سفارش و محصول برای ADMIN. mock که هر نوشتن موفق را ثبت می‌کند | ✅ |
+| 12.11 | جمع‌بندی: نقش‌ها/منو، README، «کارهای باز» (شکاف‌های باقی‌مانده)، `tsc` + `eslint` + `next build`، تست نقش‌ها | ✅ |
+
+### فاز ۱۳ — کانترکت 1.21.0 (جلسه‌ی ۴)
+تغییرات 1.12.0 (کپی در `kiva-fe@0f0c689`) ← 1.21.0: دو endpoint تازه (`GET /admin/blog/posts`، `GET /admin/blog/posts/{id}` با `AdminBlogPost`)، پارامتر `sort` در `GET /admin/returns`، فیلدهای nullable برای حساب حذف‌شده، `AdminReturnRequest.suggestedRefund` (و حذف `iban`)، `AdminContactMessage.replyChannel/repliedAt/repliedBy`، کدهای خطای تازه (`CAMPAIGN_OVERLAP`، `CTA_INCOMPLETE`، `IMAGE_REQUIRED`، `EMAIL_NOT_AVAILABLE`، `REPLY_*`، `RETURN_REFUND_EXISTS/OPEN`، `BLOG_*`، …) و قانون‌های تازه در توضیح endpointها. هیچ endpointی حذف نشد.
+
+| # | کار | وضعیت |
+|---|---|---|
+| 13.1 | **بلاگ:** لیست و فرم از endpointهای ادمین؛ تب وضعیت، «زمان‌بندی‌شده»، «محصول برداشته‌شده» (`unavailableProductIds`، هشدار روی بلوک)، نظرهای «مفید نبود»، سازنده/ویرایشگر؛ اعتبارسنجی محلی 1.21؛ SEO فقط title/description/noIndex | ✅ |
+| 13.2 | **مسیر خطای فیلدها:** `fieldErrorsOf` مسیرها را dot-notation می‌کند (`items[0].x` ← `items.0.x`)؛ بلوک‌های بلاگ، تنظیمات، رسید مرجوعی و ویرایش عکس با کلید کانترکت | ✅ |
+| 13.3 | **مرجوعی و استرداد:** `sort`، حذف شبا، `suggestedRefund` در جدول و پیش‌پر شدن مودال استرداد، «منتظر نتیجه‌ی استرداد»، حامل جمع‌آوری فقط تیپاکس/پست، `RETURN_REFUND_EXISTS`/`RETURN_REFUND_OPEN` ← بستن مودال و خواندن دوباره، متن پیامک‌ها | ✅ |
+| 13.4 | **حساب حذف‌شده:** نام/موبایل/نشانی `null` در صف، جزئیات، برگه‌ی ارسال، جستجوی سریع، مرجوعی ← «حساب حذف‌شده»؛ `formatPhone(null)` | ✅ |
+| 13.5 | **پیام تماس:** پاسخ پیامکی فقط خبر و کد پیگیری است (در UI گفته شد)، `replyChannel/repliedAt/repliedBy`، پاکردن یادداشت با `null`، کدهای `EMAIL_NOT_AVAILABLE`/`REPLY_*` زیر فیلد | ✅ |
+| 13.6 | **نظرات:** نام محصول با `GET /products?ids=`، «پاسخ» فقط زیر تأییدشده، `INVALID_STATUS_TRANSITION`/`REVIEW_ALREADY_EXISTS` | ✅ |
+| 13.7 | **بازاریابی:** کمپین (`CAMPAIGN_OVERLAP` با نام کمپین هم‌پوشان، حدها، `productIds.{i}`)، بنر (عکس اجباری، `CTA_INCOMPLETE`، `cta`/`text` nullable)، پیام رضایت (فیلدهای nullable، رنگ از رنگ‌های همان محصول، تاریخ آینده نه) — `PUT`ها با `null` | ✅ |
+| 13.8 | **mock به 1.21.0:** پیش‌نویس عکس جدا (`draftItems`، ثبت ارسال پیش‌نویس را می‌فرستد، `PHOTOS_INCOMPLETE`)، ارسال فقط از `PHOTO_SENT` بعد از پاسخ/مهلت (`AWAITING_CUSTOMER_FEEDBACK`، `GROUP_NOT_READY`، اصلاح ارسال)، `refundStatus`/`sort`، `TRANSITIONS` کانترکت، و همه‌ی قانون‌های بالا | ✅ |
+| 13.9 | `useUrlFilters`: «همه» کنار تب پیش‌فرض دیگر به پیش‌فرض برنمی‌گشت (مرجوعی، پیام تماس، نظرات، خبرنامه) | ✅ |
 
 ---
 
@@ -287,17 +302,22 @@ kiva-backoffice-fe/
 - **12.3 چرخه‌ی مرجوعی:** `ReturnsEndpoints` (`AdminReturnRequest`؛ `schedulePickup`، `receive`، `close`؛ نوع موقت `AdminReturn` حذف شد)؛ `returns/_components/returnStepModals` (`PickupModal` حامل/زمان شمسی/کد رهگیری/یادداشت/پیامک — دوباره = تغییر؛ `ReceiptModal` برای هر قلم «رسید» و «برگشت به فروش» (پیش‌فرض صفر برای ایراد ساخت/آسیب ارسال) + نتیجه‌ی بازبینی؛ `CloseModal` روی `ConfirmModal` با دلیل لازم؛ `useStepDone` = toast + invalidate `returns` و جزئیات سفارش؛ `INVALID_STATUS_TRANSITION` ← بستن و خواندن دوباره). `/returns`: ۸ تب (همه‌ی مراحل)، ستون مشتری، شبا، جزئیات هر مرحله زیر وضعیت، دکمه‌ها فقط از `allowedTransitions`؛ «ثبت استرداد» (فقط ADMIN) = لینک `/orders/{code}?refund={id}` ← صفحه‌ی سفارش مودال استرداد را با همان مرجوعی باز می‌کند (مبلغ = اقلام مرجوعی، روش = `refundMethod`، دلیل «مرجوعی RT-…»؛ پارامتر با بستن پاک می‌شود)؛ برای غیر ADMIN «منتظر استرداد (مدیر کل)». `RefundModal`: سقف = پرداختی − استردادهای غیر `FAILED`، فقط مرجوعی‌های `RECEIVED` در انتخاب. کارت مرجوعی صفحه‌ی سفارش: دلیل بستن + «ثبت استرداد این مرجوعی». برچسب‌ها: `PICKUP_SCHEDULED` «در حال جمع‌آوری»، `RECEIVED` «رسیده به انبار». هشدار شکاف §۷ #۸ حذف شد. تست: `RT-1017` رسید (برگشت به فروش ۰) ← رسیده؛ `RT-1019` بستن بی دلیل ← خطا، با دلیل ← «بسته شد»؛ `RT-1015` «ثبت استرداد» ← صفحه‌ی سفارش با مودال پرشده (۱٬۷۵۰٬۰۰۰، شبا) ← ثبت ← پیگیری «انجام شد» ← سفارش «وجه برگشت داده شد»؛ `RT-1013` تأیید ← جمع‌آوری با کد ← «در حال جمع‌آوری».
 - **12.4 کاتالوگ:** نوع `AdminCategory` (`imageMediaId`)؛ `TaxonomyEndpoints.getAdminCategories` ← `AdminCategory[]`، `getMaterials` ← `GET /admin/materials` (صفحه‌ی متریال و فرم محصول، هر دو نقش کاتالوگ)؛ فرم دسته حالا عکس فعلی را با شناسه‌اش نگه می‌دارد و همیشه `imageMediaId` می‌فرستد (ترفند `CURRENT` حذف شد). `ColorsEndpoints.deleteColor`، `updateMaterial`، `deleteMaterial`. `/colors`: دکمه‌ی حذف (برای رنگِ روی محصول غیرفعال با `title` تعداد) + `ConfirmModal`. `/materials`: ستون ویرایش/حذف، `MaterialForm` برای ساخت و ویرایش، هشدار شکاف حذف شد. mock: `imageMediaId` در نمای دسته، کد ۴۰۹ ‏`IN_USE` (دسته، رنگ، متریال؛ با پیش‌نویس و آرشیو)، `DELETE /admin/colors/:key`، `GET/PUT/DELETE /admin/materials`. تست: متریال تازه ← ساخته ← حذف؛ ویرایش «چرم مصنوعی مات» (زیرعنوان «۲ محصول…») ← ذخیره؛ رنگ‌های روی محصول ← حذف غیرفعال.
 
+### جلسه‌ی ۴ (۳ آبان ۱۴۰۵)
+- کانترکت **1.21.0** در `kiva-openapi.yml` گذاشته شده بود؛ تغییرات کاری `kiva-fe` و این پروژه از ۲۹ مهر (فاز ۱۲.۵–۱۲.۷ روی 1.12.0) کامیت نشده بودند و mock آن‌ها را نداشت (۱۰ endpoint ادمین در mock نبود؛ صفحه‌ی اطلاعیه، پیام رضایت، FAQ، صفحات و پیش‌نویس عکس روی mock کار نمی‌کردند).
+- مقایسه: اسکریپت `js-yaml` روی همه‌ی `paths` و `components.schemas` (1.12.0 از `kiva-fe@0f0c689` ← 1.21.0) + diff متن توضیح endpointها؛ همه‌ی ۸۰ متد `/admin/*` با `src/**/_api` تطبیق داده شد. نکته: yml یک کلید تکراری دارد (پاسخ `404` دو بار در `/reviews/{reviewId}/helpful`، خط‌های ۱۱۱۳ و ۱۱۱۹) — `js-yaml` بدون `json: true` خطا می‌دهد؛ به بک‌اند گفته شود.
+- فاز ۱۲.۸–۱۲.۱۰ و فاز ۱۳ (جدول بالا) انجام شد. فایل‌های تازه: `types/audit.type.ts`، `(panel)/_api/auditEndpoints.ts`، `(panel)/_components/auditHistory`، `auditChanges`، `(panel)/audit-log`، `(panel)/newsletter`، `customers/[id]`، `customers/_components/customerDetailView`، `rolesModal` (از `customersView` جدا شد)، `mock/admin/audit.mjs`.
+- تست (mock + پنل، ADMIN): لیست بلاگ (۸ مقاله با پیش‌نویس/زمان‌بندی/آرشیو/محصول برداشته‌شده)، ذخیره‌ی مقاله‌ی ۳ ← خطای `blocks.2.productId` زیر همان بلوک؛ خبرنامه (۳۹ فعال، «همه» = ۴۶)؛ لاگ تغییرات؛ `KV-220389` پیش‌نویس ← «ثبت ارسال» ← «عکس کیف ارسال شد» و ردیف تازه در کارت تاریخچه؛ `RT-1015` ← مودال استرداد با ۱٬۷۵۰٬۰۰۰ پیشنهادی و شبا ← ثبت؛ استرداد دوم `RETURN_REFUND_EXISTS` و بستن `RETURN_REFUND_OPEN` (curl)؛ مشتری ۱۰۱۰؛ پاسخ پیامکی پیام تماس؛ نظرات با نام محصول؛ همه‌ی ۱۸ صفحه‌ی دیگر بدون خطای شبکه؛ ۳۷۵px بدون اسکرول افقی. `tsc` ✅ · `eslint src mock` ✅ (همان یک هشدار قدیمی `toEn`) · `next build` ✅ (۳۳ مسیر).
+
 ---
 
 ## کارهای باز (برای جلسه‌های بعد)
 
-**از بک‌اند بپرس / درخواست بده** (شکاف‌های FEATURES §۷ که پنل الان با راه‌حل موقت کار می‌کند):
-1. `GET /admin/blog/posts` (+ پیش‌نویس‌ها) — الان لیست از بلاگ عمومی است؛ و این‌که `GET /blog/posts/{id}` با توکن کارمند پیش‌نویس را برگرداند (mock این را فرض کرده).
-2. `GET /admin/testimonials`، `GET /admin/announcements`، `GET /admin/pages`، `GET /admin/faq` — الان از endpointهای عمومی؛ اطلاعیه‌ی زمان‌بندی‌شده با ذخیره پاک می‌شود.
-3. `productIds` در پاسخ `Campaign` و `isPublished`/`sortOrder` در پاسخ `Testimonial`، `status` در `BlogPostSummary`، شناسه‌ی مدیا در پاسخ‌ها (`Category.imageMediaId`، `Testimonial.screenshotMediaId`) — فرم‌ها به آن‌ها نیاز دارند.
-4. `/admin/blog/categories` و `/admin/blog/authors`؛ ویرایش/حذف/لیست متریال؛ حذف یا غیرفعال‌سازی رنگ؛ حذف کمپین.
-5. انجام درخواست تغییر مشتری (`CHANGE_REQUESTED`)، ادامه‌ی چرخه‌ی مرجوعی (`PICKUP_SCHEDULED`، `RECEIVED`، `CLOSED`)، `PATCH /admin/refunds/{id}`، `GET /admin/customers/{id}`، `GET /admin/stock-alerts`، خبرنامه، لاگ تغییرات.
-6. مجاز کردن origin پنل (`http://localhost:3200` در توسعه، `admin.kiva.ir` در پروداکشن) برای `refresh`/`logout`.
+**از بک‌اند بپرس / درخواست بده:**
+1. `/admin/blog/categories` و `/admin/blog/authors` — دسته‌ها الان از بلاگ عمومی و نویسنده‌ها از روی مقاله‌ها.
+2. `GET /admin/customers/{id}` برای حساب حذف‌شده `404 NOT_FOUND` ِ عمومی می‌دهد — یک کد دامنه‌ای (مثل `CUSTOMER_NOT_FOUND`) لازم است تا پنل «حساب حذف شده» را از «مسیر اشتباه» جدا کند.
+3. `Review.product` در `GET /admin/reviews` همیشه `null` است — پنل نام‌ها را از `GET /products?ids=` می‌خواند و محصول منتشرنشده فقط با شناسه دیده می‌شود؛ بهتر است پنل `product` را بگیرد.
+4. کلید تکراری `404` در yml (بالا).
+5. مجاز کردن origin پنل (`http://localhost:3200` در توسعه، `admin.kiva.ir` در پروداکشن) برای `refresh`/`logout`.
 
 **بهبودهای پیشنهادی در خود پنل:** فازهای ۹ تا ۱۱ انجام شد. ایده‌های بعدی (هیچ‌کدام شروع نشده، فقط اگر کاربر خواست):
 - جستجوی سریع: `aria-activedescendant` برای صفحه‌خوان‌ها (الان فوکوس روی input می‌ماند و ردیف فعال فقط کلاس `.on` و `aria-selected` دارد).

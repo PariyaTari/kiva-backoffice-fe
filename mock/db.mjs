@@ -48,6 +48,10 @@ export function createUser(phone) {
 }
 
 export const fullNameOf = (u) => [u.firstName, u.lastName].filter(Boolean).join(" ") || null;
+/** `0912***6789`. */
+export const maskPhone = (phone) => (phone ? `${phone.slice(0, 4)}***${phone.slice(-4)}` : null);
+/** How the contract names a panel user who did something (`repliedBy`, `createdBy`, …): full name, else the masked mobile. */
+export const actorNameOf = (u) => (u ? fullNameOf(u) || maskPhone(u.phone) : "سیستم");
 
 export const userView = (u) => {
 	const full = fullNameOf(u);

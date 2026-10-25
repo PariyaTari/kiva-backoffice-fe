@@ -128,7 +128,7 @@ export default function ProductsView() {
 			/>
 
 			<div className="fbar">
-				<SearchInput value={f.q} onSearch={(q) => setF({ q })} placeholder="نام، SKU یا slug" />
+				<SearchInput value={f.q} onSearch={(q) => setF({ q })} placeholder="نام، SKU، بارکد، دسته، رنگ یا متریال" />
 				<select className="select" aria-label="وضعیت" value={f.status} onChange={(e) => setF({ status: e.target.value })}>
 					<option value="">همه‌ی وضعیت‌ها</option>
 					{optionsOf(PRODUCT_STATUS).map((o) => (

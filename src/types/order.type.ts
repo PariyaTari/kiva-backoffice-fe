@@ -1,4 +1,4 @@
-/** Orders, payments, refunds and returns as the panel sees them (kiva-openapi.yml 1.4.0 · Orders, Admin · Orders). */
+/** Orders, payments, refunds and returns as the panel sees them (kiva-openapi.yml 1.21.0 · Orders, Admin · Orders). */
 import { ColorKey, IconName, MediaAsset, MediaView, Money, OrderCode, PaymentGatewayCode, PhotoMessengerChannel, ShippingMethodCode, Tone } from "./common.type";
 import { PageMeta } from "./pageinate";
 
@@ -19,7 +19,8 @@ export type OrderStatus =
 
 export type PaymentStatus = "PENDING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "EXPIRED" | "REFUNDED";
 export type MediaStatus = "WAITING" | "SENT" | "APPROVED" | "CHANGE_REQUESTED";
-export type RefundMethod = "ORIGINAL_PAYMENT" | "BANK_TRANSFER" | "STORE_CREDIT";
+/** 1.12.0 — refunds are manual bank transfers; there is no store credit any more. */
+export type RefundMethod = "ORIGINAL_PAYMENT" | "BANK_TRANSFER";
 export type RefundStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
 export type ReturnStatus = "REQUESTED" | "APPROVED" | "REJECTED" | "PICKUP_SCHEDULED" | "RECEIVED" | "REFUNDED" | "CLOSED";
 export type ReturnReason = "NOT_AS_PICTURED" | "MANUFACTURING_DEFECT" | "WRONG_ITEM" | "DAMAGED_IN_TRANSIT" | "CHANGED_MIND" | "OTHER";
@@ -39,8 +40,9 @@ export type AdminOrderListItem = {
 	code: OrderCode;
 	placedAt: string;
 	status: OrderStatus;
-	customerName: string;
-	customerPhone: string;
+	/** The account's name, else the recipient's; 1.21.0 — `null` for an anonymised order (the account was deleted). */
+	customerName: string | null;
+	customerPhone: string | null;
 	city: string;
 	itemsCount: number;
 	payable: Money;
@@ -60,15 +62,23 @@ export type AdminOrderListResponse = {
 	statusCounts: Partial<Record<OrderStatus, number>>;
 };
 
+/** `newest` (default) or `oldest` — working the queue in the order it came in. */
+export type AdminOrderSort = "newest" | "oldest";
+
 export type AdminOrderFilters = {
+	/** Empty = every paid order (unpaid and expired ones only come with an explicit status). */
 	status: OrderStatus[];
 	q?: string;
 	shippingMethod?: ShippingMethodCode;
 	reserved?: boolean;
+	/** `PROCESSING` with the photo step `WAITING` (a draft or not). */
 	awaitingPhotos?: boolean;
+	/** Orders with a refund in this state — the manual refund queue. */
+	refundStatus?: Extract<RefundStatus, "PENDING" | "PROCESSING">;
 	/** `YYYY-MM-DD` */
 	from?: string;
 	to?: string;
+	sort?: AdminOrderSort;
 };
 
 // ── one order ──
@@ -108,7 +118,8 @@ export type OrderItem = {
 	name: string;
 	slug?: string;
 	color: Color;
-	image: MediaAsset | null;
+	/** 1.12.0 — the colour's photo at purchase time (480px snapshot URL); `null` before media was uploaded. */
+	image: string | null;
 	quantity: number;
 	unitPrice: Money;
 	unitCompareAtPrice: Money | null;
@@ -132,13 +143,17 @@ export type OrderTotals = {
 	balanceDue?: Money;
 };
 
+/** 1.21.0 — an anonymised order (deleted account) keeps only the province and city: every personal field is `null`. */
 export type AddressSnapshot = {
 	provinceName: string;
 	cityName: string;
-	addressLine: string;
-	postalCode: string;
-	recipientName: string;
-	recipientPhone: string;
+	addressLine: string | null;
+	plaque?: string | null;
+	unit?: string | null;
+	postalCode: string | null;
+	recipientName: string | null;
+	recipientPhone: string | null;
+	/** «استان، شهر» only for an anonymised order. */
 	fullText: string;
 };
 
@@ -167,18 +182,27 @@ export type PreShipmentMedia = {
 	status: MediaStatus;
 	channel: PhotoMessengerChannel;
 	channelName: string;
-	phone: string;
+	/** 1.21.0 — `null` only for an anonymised order (with `username` and `note`). */
+	phone: string | null;
+	/** 1.12.0 — the shopper's id in that messenger, when given at checkout; the operator sends to it. */
+	username?: string | null;
 	note: string | null;
 	sentAt: string | null;
 	waitingMessage: string | null;
+	/** The last batch **sent**; the operator's draft is `AdminOrder.draftItems`. */
 	items: OrderMediaItem[];
 	feedback: PreShipmentFeedback | null;
+	/** Photo sent + 24h: no answer by then counts as approved, and the order may ship. */
 	feedbackDeadline: string | null;
 };
 
 export type OrderEvent = { status: OrderStatus; label: string; at: string; note: string | null };
 
 export type OrderPaymentInfo = {
+	/** 1.12.0 — `BALANCE` = paying the balance left after a change request. */
+	purpose: "ORDER" | "BALANCE";
+	/** 1.12.0 — this attempt's amount. */
+	amount: Money;
 	gateway: PaymentGatewayCode;
 	gatewayName: string;
 	status: PaymentStatus;
@@ -196,52 +220,69 @@ export type Refund = {
 	/** 1.5.0 — the return this refund is for. */
 	returnId?: number | null;
 	createdAt?: string;
+	/** Created + 72h — when a colleague is expected to have called the shopper. */
 	expectedBy: string | null;
 	completedAt: string | null;
-	/** The bank's / gateway's tracking number. */
+	/** The bank transfer's tracking number. */
 	referenceId: string | null;
 	/** 1.5.0 — the note of the last status change; the shopper sees it too. */
 	statusNote?: string | null;
 };
 
+/** 1.21.0 — every field is always sent. */
 export type ReturnRequest = {
 	id: number;
+	/** `RT-` + (1000 + `id`). */
 	code: string;
 	orderCode: OrderCode;
 	status: ReturnStatus;
-	statusLabel?: string;
+	statusLabel: string;
 	reason: ReturnReason;
 	description: string | null;
 	items: { orderItemId: number; name: string; color: Color; quantity: number }[];
 	media: MediaAsset[];
-	shippingPaidBy: ShippingPaidBy | null;
+	/** Filled from the request on: the reason's suggestion, until the operator changes it on approval. */
+	shippingPaidBy: ShippingPaidBy;
+	/** After approval: the operator's text or the payer's default; `null` in `REQUESTED` and `REJECTED`. */
 	instructions: string | null;
-	refundMethod?: RefundMethod;
+	/** The shopper's preference for the money back. */
+	refundMethod: RefundMethod;
 	/** Only for `REJECTED`. */
-	rejectionReason?: string | null;
+	rejectionReason: string | null;
 	/** Kiva collects the parcel (`PICKUP_SCHEDULED`); `null` when the shopper sends it. */
-	pickup?: ReturnPickup | null;
+	pickup: ReturnPickup | null;
+	/** The return's latest refund (`FAILED` too, with `statusNote`); `null` until one is recorded. */
 	refund: Refund | null;
 	createdAt: string;
 	decidedAt: string | null;
-	receivedAt?: string | null;
-	closedAt?: string | null;
+	receivedAt: string | null;
+	closedAt: string | null;
 	/** Only for `CLOSED`. */
-	closeReason?: string | null;
+	closeReason: string | null;
 };
 
 export type ReturnPickup = { carrier: ShippingMethodCode; carrierName: string; scheduledFor: string | null; trackingCode: string | null; note: string | null };
 export type ReturnReceipt = { items: { orderItemId: number; receivedQuantity: number; restockQuantity: number }[]; note: string | null };
 
-/** 1.5.0 `AdminReturnRequest` — a return in the panel: the shopper, the IBAN, the warehouse receipt and the next steps. */
+/**
+ * `AdminReturnRequest` — a return in the panel: the shopper, the warehouse receipt, the next steps and (1.21.0) the
+ * suggested refund. The IBAN is not kept anywhere (it is taken by phone).
+ */
 export type AdminReturnRequest = ReturnRequest & {
-	customer: { id: number; fullName: string | null; phone: string };
-	/** For `refundMethod = BANK_TRANSFER`, else `null`. */
-	iban: string | null;
+	/** From the shopper's **current** account; `phone` is `null` once the account was deleted. */
+	customer: { id: number; fullName: string | null; phone: string | null };
 	receipt: ReturnReceipt | null;
-	/** What may happen next (contract §4); `REFUNDED` = «ثبت استرداد با returnId». */
+	/** What may happen next (contract §4); `REFUNDED` = «ثبت استرداد با returnId». `RECEIVED` with an open refund: `[]`. */
 	allowedTransitions: ReturnStatus[];
+	/**
+	 * Only in `RECEIVED`: the paid share of what came back (code discount taken off, **no shipping**), capped at what the
+	 * order can still refund. A suggestion — the admin types the amount.
+	 */
+	suggestedRefund: Money | null;
 };
+
+/** `GET /admin/returns` `sort`: by request time — `oldest` shows the parcels that never arrived (no auto-close). */
+export type AdminReturnSort = AdminOrderSort;
 
 export type AdminNote = { id: number; text: string; author: string; createdAt: string };
 
@@ -267,8 +308,16 @@ export type AdminOrder = {
 	gift: { wrap: boolean; message: string } | null;
 	returns: AdminReturnRequest[];
 	// admin extras
-	customer: { id: number; fullName: string; phone: string; ordersCount: number };
+	/**
+	 * `fullName` is `null` when the shopper never gave a name or deleted the account; `phone` is `null` only for a
+	 * deleted account (the panel shows «حساب حذف‌شده»). `ordersCount` = their paid orders.
+	 */
+	customer: { id: number; fullName: string | null; phone: string | null; ordersCount: number };
+	/** The group's non-cancelled orders in payment order; `releaseAt` = the end of its reservation. */
 	shipmentGroup: { code: string; orderCodes: OrderCode[]; releaseAt: string } | null;
+	/** 1.12.0 — the photo draft (`PUT …/pre-shipment-media`) not sent yet; the shopper doesn't see it. */
+	draftItems: OrderMediaItem[];
+	/** Every payment attempt, oldest first. */
 	payments: OrderPaymentInfo[];
 	refunds: Refund[];
 	notes: AdminNote[];
@@ -278,12 +327,16 @@ export type AdminOrder = {
 // ── actions ──
 export type OrderStatusChangePayload = { status: OrderStatus; note?: string | null; notifyCustomer?: boolean };
 export type PreShipmentMediaPayload = { items: { mediaId: string; orderItemId: number | null; view?: MediaView; sortOrder?: number }[] };
-export type SendMediaPayload = { manual?: boolean; channelOverride?: PhotoMessengerChannel; message?: string };
+/** 1.12.0 — sending is always by hand: `manual` is always `true`, the channel is the one actually used, `message` is only recorded. */
+export type SendMediaPayload = { manual: true; channelOverride?: PhotoMessengerChannel; message?: string };
 export type ShipmentPayload = { carrier: ShippingMethodCode; trackingCode: string; shippedAt?: string | null; showInDailyList?: boolean };
+/** `method` left out: the return's `refundMethod` (with `returnId`), else `ORIGINAL_PAYMENT`. */
 export type RefundPayload = { amount: Money; reason: string; method?: RefundMethod; returnId?: number | null };
-export type ReturnDecisionPayload = { approve: boolean; shippingPaidBy?: ShippingPaidBy; instructions?: string; rejectionReason?: string | null };
+/** Approve: `shippingPaidBy` / `instructions` left out = the reason's suggestion / the payer's default text. Reject: a reason of 3–500. */
+export type ReturnDecisionPayload = { approve: boolean; shippingPaidBy?: ShippingPaidBy | null; instructions?: string | null; rejectionReason?: string | null };
 export type ChangeRequestResolutionPayload = { decision: ChangeRequestDecision; variantId?: number | null; note?: string | null; notifyCustomer?: boolean };
 export type RefundUpdatePayload = { status: Exclude<RefundStatus, "PENDING">; referenceId?: string | null; note?: string | null };
+/** Replaces the whole pickup (a field left out = empty). `carrier` only `TIPAX` / `POST`; `scheduledFor` from an hour ago to 30 days on. */
 export type ReturnPickupPayload = { carrier: ShippingMethodCode; scheduledFor?: string | null; trackingCode?: string | null; note?: string | null; notifyCustomer?: boolean };
 export type ReturnReceiptPayload = ReturnReceipt;
 export type ReturnClosePayload = { reason: string; notifyCustomer?: boolean };

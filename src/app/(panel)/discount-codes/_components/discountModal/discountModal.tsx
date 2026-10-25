@@ -15,15 +15,26 @@ import MultiSelect from "@/app/_components/ui/multiSelect/multiSelect";
 import Switch from "@/app/_components/ui/switch/switch";
 import { toast } from "@/store/notification.store";
 import { DiscountCode, DiscountCodeUpsertRequest, DiscountType } from "@/types/marketing.type";
-import { fieldErrorsOf } from "@/utils/fieldErrors";
+import { convertPersianToEnglishString } from "@/utils/digits";
+import { fieldErrorsWith } from "@/utils/fieldErrors";
 import { withMappedError } from "@/utils/withMappedError";
 import { DiscountsEndpoints } from "../../_api/discountsEndpoints";
 
+/** A new code is 3–32 of these; older two-letter codes stay valid when edited. */
 const CODE = /^[A-Z0-9_-]{3,32}$/;
+const OLD_CODE = /^[A-Z0-9_-]{2,32}$/;
+/** `DiscountCodeUpsertRequest` ranges (1.12.0). */
+const LIMITS = { fixed: [1_000, 100_000_000], maxDiscount: [1_000, 100_000_000], minSubtotal: 1_000_000_000, categories: 50, products: 200 } as const;
+
+/** Trim, capitals, Latin digits — what the server does before checking the pattern. */
+const normalizeCode = (s: string) => convertPersianToEnglishString(s).trim().toUpperCase().replace(/\s/g, "");
 
 type DiscountModalProps = { code: DiscountCode | null; open: boolean; onClose: () => void };
 
-/** `DiscountCodeUpsertRequest` — the amount, every condition of FEATURES §3.8, and the period. */
+/**
+ * `DiscountCodeUpsertRequest` — the amount, every condition of FEATURES §3.8, and the period. Saving replaces the whole
+ * code; past orders keep their stored amounts, carts drop a code that no longer applies (`DISCOUNT_REMOVED`).
+ */
 export default function DiscountModal({ code, open, onClose }: DiscountModalProps) {
 	return (
 		<Modal open={open} onClose={onClose} width={720}>
@@ -44,7 +55,8 @@ function DiscountForm({ code, onClose }: Omit<DiscountModalProps, "open">) {
 		startsAt: code?.startsAt ?? null,
 		endsAt: code?.endsAt ?? null,
 		usageLimit: code?.usageLimit ?? null,
-		perUserLimit: code?.perUserLimit ?? 1,
+		// 1.12.0: no default any more — missing = no cap
+		perUserLimit: code?.perUserLimit ?? null,
 		firstOrderOnly: code?.firstOrderOnly ?? false,
 		requiresLogin: code?.requiresLogin ?? false,
 		excludeSaleItems: code?.excludeSaleItems ?? false,
@@ -61,24 +73,58 @@ function DiscountForm({ code, onClose }: Omit<DiscountModalProps, "open">) {
 		meta: { showNotification: true },
 	});
 
+	const percent = v.type === "PERCENT";
+	// a per-shopper cap or «first order only» can't count guests — the server stores such a code as «فقط با ورود»
+	const loginForced = !!v.firstOrderOnly || v.perUserLimit != null;
+	const payload = (): DiscountCodeUpsertRequest => ({
+		...v,
+		code: normalizeCode(v.code),
+		label: v.label.trim(),
+		// `maxDiscount` is for percent codes only (`MAX_DISCOUNT_NOT_ALLOWED`)
+		maxDiscount: percent ? (v.maxDiscount ?? null) : null,
+		requiresLogin: !!v.requiresLogin || loginForced,
+	});
+
 	const save = useMutation({
-		mutationFn: () => withMappedError(() => (code ? DiscountsEndpoints.update(code.id, v) : DiscountsEndpoints.create(v))),
+		mutationFn: () => withMappedError(() => (code ? DiscountsEndpoints.update(code.id, payload()) : DiscountsEndpoints.create(payload()))),
 		meta: { showNotification: true },
 		onSuccess: (d) => {
 			toast(`کد ${d.code} ذخیره شد`, { icon: "check" });
 			queryClient.invalidateQueries({ queryKey: ["discounts"] });
 			onClose();
 		},
+		// saved by someone else at the same moment — nothing of this one was stored; the list is read again
+		onError: (e) => {
+			if (e.code === "CHANGED_BY_SOMEONE_ELSE") {
+				queryClient.invalidateQueries({ queryKey: ["discounts"] });
+				onClose();
+			}
+		},
 	});
 
-	const percent = v.type === "PERCENT";
+	const typed = normalizeCode(v.code);
+	const keepsOldCode = !!code && typed === code.code;
 	const local: Record<string, string | null> = {
-		code: !CODE.test(v.code) ? "۳ تا ۳۲ حرف بزرگ لاتین، رقم، _ یا -." : null,
-		value: !v.value ? "مقدار تخفیف را وارد کن." : percent && v.value > 100 ? "درصد حداکثر ۱۰۰." : null,
-		label: !v.label.trim() ? "متنی که مشتری در سبد می‌بیند را بنویس." : null,
+		code: !(CODE.test(typed) || (keepsOldCode && OLD_CODE.test(typed))) ? "۳ تا ۳۲ حرف بزرگ لاتین، رقم، _ یا -." : null,
+		value: !v.value
+			? "مقدار تخفیف را وارد کن."
+			: percent
+				? v.value > 100
+					? "درصد حداکثر ۱۰۰."
+					: null
+				: v.value < LIMITS.fixed[0] || v.value > LIMITS.fixed[1]
+					? "بین ۱٬۰۰۰ و ۱۰۰٬۰۰۰٬۰۰۰ تومان."
+					: null,
+		maxDiscount: percent && v.maxDiscount != null && (v.maxDiscount < LIMITS.maxDiscount[0] || v.maxDiscount > LIMITS.maxDiscount[1]) ? "بین ۱٬۰۰۰ و ۱۰۰٬۰۰۰٬۰۰۰ تومان." : null,
+		minSubtotal: v.minSubtotal != null && v.minSubtotal > LIMITS.minSubtotal ? "حداکثر ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان." : null,
+		label: !v.label.trim() ? "متنی که مشتری در سبد می‌بیند را بنویس." : v.label.length > 200 ? "حداکثر ۲۰۰ حرف." : null,
+		usageLimit: v.usageLimit != null && v.usageLimit < 1 ? "حداقل ۱ (خالی = نامحدود)." : null,
+		perUserLimit: v.perUserLimit != null && v.perUserLimit < 1 ? "حداقل ۱ (خالی = نامحدود)." : null,
 		endsAt: v.startsAt && v.endsAt && Date.parse(v.endsAt) <= Date.parse(v.startsAt) ? "پایان باید بعد از شروع باشد." : null,
+		categoryIds: (v.categoryIds?.length ?? 0) > LIMITS.categories ? "حداکثر ۵۰ دسته." : null,
+		productIds: (v.productIds?.length ?? 0) > LIMITS.products ? "حداکثر ۲۰۰ محصول." : null,
 	};
-	const server = fieldErrorsOf(save.error);
+	const server = fieldErrorsWith(save.error, { DUPLICATE_CODE: "code" });
 	const err = (k: string) => (touched && local[k]) || server[k] || null;
 
 	return (
@@ -86,7 +132,7 @@ function DiscountForm({ code, onClose }: Omit<DiscountModalProps, "open">) {
 			<ModalHead icon="tag" title={code ? `ویرایش ${code.code}` : "کد تخفیف جدید"} subtitle="درصدی روی جمع بعد از تخفیف محصولات (گرد به ۱٬۰۰۰) یا مبلغ ثابت" />
 			<div className="m-body">
 				<div className="form-grid">
-					<Input label="کد" direction="ltr" value={v.code} onChange={(e) => set("code", e.target.value.toUpperCase().replace(/\s/g, ""))} error={err("code")} placeholder="PAEEZ15" />
+					<Input label="کد" direction="ltr" maxLength={32} value={v.code} onChange={(e) => set("code", normalizeCode(e.target.value))} error={err("code")} placeholder="PAEEZ15" />
 					<div className="field">
 						<label>نوع</label>
 						<div className="radios">
@@ -105,13 +151,13 @@ function DiscountForm({ code, onClose }: Omit<DiscountModalProps, "open">) {
 						<MoneyInput label="مبلغ تخفیف" value={v.value || null} onChange={(n) => set("value", n ?? 0)} error={err("value")} />
 					)}
 					{percent ? <MoneyInput label="سقف تخفیف" labelNote="اختیاری" value={v.maxDiscount ?? null} onChange={(n) => set("maxDiscount", n)} error={err("maxDiscount")} /> : <span />}
-					<Input label="متن نمایشی" value={v.label} onChange={(e) => set("label", e.target.value)} error={err("label")} placeholder="۱۵٪ تخفیف پاییزه (خرید بالای ۲ میلیون)" wrapperClassName="full" />
+					<Input label="متن نمایشی" maxLength={200} value={v.label} onChange={(e) => set("label", e.target.value)} error={err("label")} placeholder="۱۵٪ تخفیف پاییزه (خرید بالای ۲ میلیون)" wrapperClassName="full" />
 				</div>
 
 				<div className="form-grid">
-					<MoneyInput label="حداقل خرید" labelNote="اختیاری" value={v.minSubtotal ?? null} onChange={(n) => set("minSubtotal", n)} />
+					<MoneyInput label="حداقل خرید" labelNote="اختیاری" value={v.minSubtotal ?? null} onChange={(n) => set("minSubtotal", n)} error={err("minSubtotal")} />
 					<NumberInput label="سقف استفاده‌ی کل" labelNote="خالی = نامحدود" value={v.usageLimit ?? null} onChange={(n) => set("usageLimit", n)} error={err("usageLimit")} />
-					<NumberInput label="سقف هر کاربر" value={v.perUserLimit ?? null} onChange={(n) => set("perUserLimit", n)} error={err("perUserLimit")} />
+					<NumberInput label="سقف هر کاربر" labelNote="خالی = نامحدود" value={v.perUserLimit ?? null} onChange={(n) => set("perUserLimit", n)} error={err("perUserLimit")} />
 					<span />
 					<div className="field">
 						<label>شروع</label>
@@ -126,14 +172,16 @@ function DiscountForm({ code, onClose }: Omit<DiscountModalProps, "open">) {
 
 				<div style={{ display: "flex", gap: "10px 24px", flexWrap: "wrap" }}>
 					<Switch label="فقط خرید اول" checked={!!v.firstOrderOnly} onChange={(e) => set("firstOrderOnly", e.target.checked)} />
-					<Switch label="فقط با ورود" checked={!!v.requiresLogin} onChange={(e) => set("requiresLogin", e.target.checked)} />
+					<Switch label="فقط با ورود" checked={!!v.requiresLogin || loginForced} disabled={loginForced} onChange={(e) => set("requiresLogin", e.target.checked)} />
 					<Switch label="روی کالاهای تخفیف‌خورده اعمال نشود" checked={!!v.excludeSaleItems} onChange={(e) => set("excludeSaleItems", e.target.checked)} />
 					<Switch label="فعال" checked={!!v.isActive} onChange={(e) => set("isActive", e.target.checked)} />
 				</div>
 
-				<div className="field">
+				{loginForced && <small className="muted">با «سقف هر کاربر» یا «فقط خرید اول»، کد خودکار فقط با ورود کار می‌کند (مهمان را نمی‌شود شمرد).</small>}
+
+				<div className={`field${err("categoryIds") ? " error" : ""}`}>
 					<label>
-						فقط برای این دسته‌ها <span className="opt">(خالی = همه)</span>
+						فقط برای این دسته‌ها <span className="opt">(خالی = همه؛ با محصول‌ها «یا» است)</span>
 					</label>
 					<MultiSelect
 						options={(categories.data ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
@@ -141,8 +189,9 @@ function DiscountForm({ code, onClose }: Omit<DiscountModalProps, "open">) {
 						onChange={(ids) => set("categoryIds", ids.map(Number))}
 						placeholder="انتخاب دسته"
 					/>
+					{err("categoryIds") && <span className="err">{err("categoryIds")}</span>}
 				</div>
-				<ProductPicker label="فقط برای این محصول‌ها" labelNote="خالی = همه" value={v.productIds ?? []} onChange={(ids) => set("productIds", ids)} />
+				<ProductPicker label="فقط برای این محصول‌ها" labelNote="خالی = همه" value={v.productIds ?? []} onChange={(ids) => set("productIds", ids)} error={err("productIds")} />
 			</div>
 			<div className="m-foot">
 				<Button variant="white" onClick={onClose} disabled={save.isPending}>

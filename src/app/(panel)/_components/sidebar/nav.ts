@@ -31,6 +31,7 @@ export const NAV: NavGroup[] = [
 		items: [
 			{ href: "/products", icon: "bag", label: "محصولات", section: "catalog" },
 			{ href: "/inventory", icon: "pkg", label: "موجودی انبار", section: "catalog" },
+			{ href: "/stock-alerts", icon: "bell", label: "موجود شد خبرم کن", section: "catalog" },
 			{ href: "/categories", icon: "layers", label: "دسته‌بندی‌ها", section: "catalog" },
 			{ href: "/colors", icon: "palette", label: "رنگ‌ها", section: "catalog" },
 			{ href: "/materials", icon: "leaf", label: "متریال‌ها", section: "catalog" },
@@ -44,6 +45,7 @@ export const NAV: NavGroup[] = [
 			{ href: "/banners", icon: "image", label: "بنرها", section: "marketing" },
 			{ href: "/announcements", icon: "bell", label: "نوار اطلاعیه", section: "marketing" },
 			{ href: "/testimonials", icon: "smile", label: "پیام‌های رضایت", section: "marketing" },
+			{ href: "/newsletter", icon: "mail", label: "مشترکین خبرنامه", section: "newsletter" },
 		],
 	},
 	{
@@ -62,7 +64,13 @@ export const NAV: NavGroup[] = [
 			{ href: "/customers", icon: "users", label: "مشتریان", section: "support" },
 		],
 	},
-	{ title: "سیستم", items: [{ href: "/settings", icon: "gear", label: "تنظیمات", section: "settings" }] },
+	{
+		title: "سیستم",
+		items: [
+			{ href: "/settings", icon: "gear", label: "تنظیمات", section: "settings" },
+			{ href: "/audit-log", icon: "receipt", label: "لاگ تغییرات", section: "auditLog" },
+		],
+	},
 ];
 
 /** The menu entry a path belongs to — for the active state and the top bar's crumb. */

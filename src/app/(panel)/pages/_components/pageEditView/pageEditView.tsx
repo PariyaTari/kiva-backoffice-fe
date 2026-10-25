@@ -14,36 +14,59 @@ import Button from "@/app/_components/ui/button/button";
 import Input from "@/app/_components/ui/input/input";
 import { STORE_REFRESH_MINUTES, STORE_URL } from "@/config/global";
 import { toast } from "@/store/notification.store";
+import { toSeoInput } from "@/types/common.type";
 import { StaticPage } from "@/types/content.type";
 import { toErrorView } from "@/utils/apiError";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
 import { toPersianDigits } from "@/utils/digits";
 import { formatDateTime, onSiteWithin } from "@/utils/format";
 import { withMappedError } from "@/utils/withMappedError";
-import { isPageMissingError, KNOWN_PAGES, PagesEndpoints } from "../../_api/pagesEndpoints";
+import { KNOWN_PAGES, PagesEndpoints } from "../../_api/pagesEndpoints";
 
 const BACK = { href: "/pages", label: "صفحات ثابت" };
+/** `StaticPageUpsertRequest` caps (1.12.0). */
+const TITLE_MAX = 120;
+const CONTENT_MAX = 50_000;
 
-/** `/pages/[slug]` — title, HTML content and SEO of one static page; a slug without a page starts a new one. */
+/**
+ * `/pages/[slug]` — title, HTML content and SEO of one static page. Whether it exists comes from the panel's list
+ * (`GET /admin/pages`); a slug not in it starts a new page, so a missing page is never read as an error.
+ */
 export default function PageEditView({ slug }: { slug: string }) {
+	const pages = useQuery({
+		queryKey: ["pages", "list"],
+		queryFn: () => withMappedError(() => PagesEndpoints.getPages()),
+		meta: { showNotificationOnRefetch: true },
+	});
+	const exists = !!pages.data?.some((p) => p.slug === slug);
 	const page = useQuery({
 		queryKey: ["pages", "detail", slug],
 		queryFn: () => withMappedError(() => PagesEndpoints.getPage(slug)),
+		enabled: exists,
 		meta: { showNotificationOnRefetch: true },
 	});
 
-	const missing = isPageMissingError(page.error);
-	const pageError = missing ? null : toErrorView(ERROR_BEHAVIOUR, page.error, "دریافت صفحه با خطا مواجه شد.");
+	const pagesError = toErrorView(ERROR_BEHAVIOUR, pages.error, "دریافت صفحات ثابت با خطا مواجه شد.");
+	const pageError = toErrorView(ERROR_BEHAVIOUR, page.error, "دریافت صفحه با خطا مواجه شد.");
 
-	if (page.isLoading) return <Loading />;
-	if (pageError)
+	if (pages.isLoading || page.isLoading) return <Loading />;
+	if (pagesError || pageError) {
+		const view = (pagesError ?? pageError)!;
 		return (
 			<>
 				<PageHead title={`/pages/${slug}`} back={BACK} />
-				<ErrorComponent retryable={pageError.retryable} ticketAble={pageError.ticketAble} errorText={pageError.errorText} executeFunction={() => page.refetch()} loading={page.isFetching} />
+				<ErrorComponent
+					retryable={view.retryable}
+					ticketAble={view.ticketAble}
+					errorText={view.errorText}
+					executeFunction={() => (pagesError ? pages.refetch() : page.refetch())}
+					loading={pages.isFetching || page.isFetching}
+				/>
 			</>
 		);
-	return <PageForm key={page.data?.updatedAt ?? "new"} slug={slug} page={page.data ?? null} />;
+	}
+	if (exists && !page.data) return null;
+	return <PageForm key={page.data?.updatedAt ?? "new"} slug={slug} page={exists ? (page.data ?? null) : null} />;
 }
 
 function PageForm({ slug, page }: { slug: string; page: StaticPage | null }) {
@@ -57,15 +80,19 @@ function PageForm({ slug, page }: { slug: string; page: StaticPage | null }) {
 	const [touched, setTouched] = useState(false);
 
 	const save = useMutation({
-		mutationFn: () => withMappedError(() => PagesEndpoints.save(slug, { title: title.trim(), content, seo })),
+		mutationFn: () => withMappedError(() => PagesEndpoints.save(slug, { title: title.trim(), content, seo: toSeoInput(seo) })),
 		meta: { showNotification: true },
 		onSuccess: () => {
 			toast(`${page ? "صفحه ذخیره شد" : "صفحه ساخته شد"} — ${onSiteWithin(STORE_REFRESH_MINUTES.pages)}`, { icon: "check" });
-			queryClient.invalidateQueries({ queryKey: ["pages", "detail", slug] });
+			// the list (a new page joins it) and this page
+			queryClient.invalidateQueries({ queryKey: ["pages"] });
 		},
 	});
 
-	const local = { title: !title.trim() ? "عنوان را بنویس." : null, content: !content.replace(/<[^>]+>/g, "").trim() ? "متن صفحه خالی است." : null };
+	const local = {
+		title: !title.trim() ? "عنوان را بنویس." : title.length > TITLE_MAX ? "حداکثر ۱۲۰ حرف." : null,
+		content: !content.replace(/<[^>]+>/g, "").trim() ? "متن صفحه خالی است." : content.length > CONTENT_MAX ? "حداکثر ۵۰٬۰۰۰ نویسه." : null,
+	};
 	const server = fieldErrorsOf(save.error);
 	const submit = (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -98,7 +125,7 @@ function PageForm({ slug, page }: { slug: string; page: StaticPage | null }) {
 						<Icon name="file" /> متن
 					</h3>
 					<div className="stack" style={{ marginTop: 14 }}>
-						<Input label="عنوان" value={title} onChange={(e) => setTitle(e.target.value)} error={(touched && local.title) || server.title} />
+						<Input label="عنوان" maxLength={TITLE_MAX} value={title} onChange={(e) => setTitle(e.target.value)} error={(touched && local.title) || server.title} />
 						<HtmlField
 							label="محتوا (HTML)"
 							value={content}
@@ -112,7 +139,7 @@ function PageForm({ slug, page }: { slug: string; page: StaticPage | null }) {
 					<h3>
 						<Icon name="search" /> SEO
 					</h3>
-					<SeoFields value={seo} onChange={setSeo} errors={server} titlePlaceholder={title ? `${title} | کیوا` : undefined} />
+					<SeoFields serverBuilt value={seo} onChange={setSeo} errors={server} titlePlaceholder={title ? `${title} | کیوا` : undefined} />
 				</section>
 				<UnsavedGuard dirty={dirty && !save.isSuccess} />
 				<div className="savebar">

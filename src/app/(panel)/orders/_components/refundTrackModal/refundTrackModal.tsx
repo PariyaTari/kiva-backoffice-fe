@@ -21,7 +21,7 @@ type NextStatus = RefundUpdatePayload["status"];
 /** The contract's refund steps: `COMPLETED` and `FAILED` are final — a failed one is followed by a new refund. */
 const NEXT: Partial<Record<Refund["status"], NextStatus[]>> = { PENDING: ["PROCESSING", "COMPLETED", "FAILED"], PROCESSING: ["COMPLETED", "FAILED"] };
 const EFFECT: Record<NextStatus, string> = {
-	PROCESSING: "پرداخت به بانک سپرده شد و منتظر نتیجه است.",
+	PROCESSING: "انتقال در جریان است (مثلاً با مشتری تماس گرفته شد و شبا تأیید شد).",
 	COMPLETED: "پول به مشتری رسید: به «برگشت داده‌شده»ی سفارش اضافه می‌شود، اگر برای مرجوعی است آن مرجوعی بسته می‌شود و پیامک می‌رود.",
 	FAILED: "انجام نشد (مثلاً شبا اشتباه بود). بسته می‌شود؛ برای برگشت پول یک استرداد تازه ثبت کن.",
 };
@@ -31,7 +31,7 @@ export const isRefundOpen = (r: Refund) => !!NEXT[r.status];
 
 type RefundTrackModalProps = { refund: Refund | null; orderCode: string; onClose: () => void };
 
-/** `PATCH /admin/refunds/{id}` (ADMIN) — in progress, done with the bank's tracking number, or failed; the note reaches the shopper. */
+/** `PATCH /admin/refunds/{id}` (ADMIN) — in progress, done with the transfer's tracking number, or failed; the note reaches the shopper. */
 export default function RefundTrackModal({ refund, orderCode, onClose }: RefundTrackModalProps) {
 	return (
 		<Modal open={!!refund} onClose={onClose} width={500}>
@@ -48,8 +48,12 @@ function RefundTrackForm({ refund, orderCode, onClose }: { refund: Refund; order
 	const [note, setNote] = useState("");
 	const [touched, setTouched] = useState(false);
 
-	const needsReference = status === "COMPLETED" && refund.method !== "STORE_CREDIT";
-	const local = { referenceId: needsReference && !referenceId.trim() ? "شماره‌ی پیگیری بانک را وارد کن." : null };
+	// 1.12.0: `COMPLETED` always needs the transfer's tracking number (`REFERENCE_ID_REQUIRED`), up to 64 of `[0-9A-Za-z-]`
+	const needsReference = status === "COMPLETED";
+	const ref = referenceId.trim();
+	const local = {
+		referenceId: needsReference && !ref ? "شماره‌ی پیگیری انتقال بانکی را وارد کن." : ref && !/^[0-9A-Za-z-]{1,64}$/.test(ref) ? "فقط حرف و رقم لاتین و خط تیره." : null,
+	};
 
 	const update = useMutation({
 		mutationFn: () => withMappedError(() => OrdersEndpoints.updateRefund(refund.id, { status, referenceId: referenceId.trim() || null, note: note.trim() || null })),
@@ -85,7 +89,7 @@ function RefundTrackForm({ refund, orderCode, onClose }: { refund: Refund; order
 				<p className={`note${status === "FAILED" ? " danger" : status === "COMPLETED" ? " success" : ""}`}>{EFFECT[status]}</p>
 				{status !== "FAILED" && (
 					<Input
-						label="شماره‌ی پیگیری بانک / درگاه"
+						label="شماره‌ی پیگیری انتقال بانکی"
 						labelNote={needsReference ? undefined : "اختیاری"}
 						direction="ltr"
 						maxLength={64}
@@ -101,7 +105,7 @@ function RefundTrackForm({ refund, orderCode, onClose }: { refund: Refund; order
 					value={note}
 					onChange={(e) => setNote(e.target.value)}
 					error={errors.note}
-					placeholder={status === "FAILED" ? "مثلاً: شماره شبا اشتباه بود؛ با پشتیبانی تماس بگیر." : undefined}
+					placeholder={status === "FAILED" ? "مثلاً: شماره شبا تأیید نشد؛ دوباره باهات تماس می‌گیریم." : undefined}
 					footer={<small className="muted">{toPersianDigits(note.length)} / ۳۰۰</small>}
 					style={{ minHeight: 70 }}
 				/>

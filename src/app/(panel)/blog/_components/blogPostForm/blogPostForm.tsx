@@ -16,17 +16,21 @@ import Switch from "@/app/_components/ui/switch/switch";
 import Textarea from "@/app/_components/ui/textarea/textarea";
 import { STORE_REFRESH_MINUTES, STORE_URL } from "@/config/global";
 import { toast } from "@/store/notification.store";
-import { SeoMeta } from "@/types/common.type";
-import { BlogPostDetail, BlogPostUpsertRequest, BlogStatus } from "@/types/content.type";
+import { SeoMeta, toSeoInput } from "@/types/common.type";
+import { AdminBlogPost, BlogPostUpsertRequest, BlogStatus } from "@/types/content.type";
 import { toPersianDigits } from "@/utils/digits";
-import { onSiteWithin } from "@/utils/format";
-import { fieldErrorsOf } from "@/utils/fieldErrors";
+import { formatDateTime, onSiteWithin } from "@/utils/format";
+import { fieldErrorsWith } from "@/utils/fieldErrors";
 import { BLOG_STATUS, optionsOf } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 import { BlogEndpoints } from "../../_api/blogEndpoints";
 import BlockEditor, { EditableBlock, newBlock } from "../blockEditor/blockEditor";
 
 const SLUG = /^(?=.*[a-z])[a-z0-9]+(-[a-z0-9]+)*$/;
+const HEX = /^#[0-9A-Fa-f]{6}$/;
+
+/** The 1.21.0 409/400s that are about one field. */
+const CODE_FIELDS = { DUPLICATE_SLUG: "slug", BLOG_CATEGORY_NOT_FOUND: "categoryId", BLOG_AUTHOR_NOT_FOUND: "authorId" };
 
 type Values = {
 	title: string;
@@ -48,7 +52,27 @@ type Values = {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-const toValues = (p: BlogPostDetail | null): Values => ({
+/**
+ * The post's blocks for the editor. A «کارت محصول» whose product left the store comes back with `product = null` and
+ * its id in `unavailableProductIds` (in block order) — kept on the block so the editor can say so; saved as is it
+ * answers `PRODUCT_NOT_FOUND`.
+ */
+const toBlocks = (p: AdminBlogPost): EditableBlock[] => {
+	const gone = [...p.unavailableProductIds];
+	return p.blocks.map((b, i) => ({
+		key: `s${i}`,
+		type: b.type,
+		text: b.text ?? "",
+		html: b.html ?? "",
+		title: b.title ?? "",
+		items: b.items ?? [],
+		productId: b.type === "PRODUCT" ? (b.product?.id ?? gone.shift() ?? null) : null,
+		imageMediaId: b.image?.id ?? null,
+		imageUrl: b.image ? b.image.thumbnailUrl || b.image.url : null,
+	}));
+};
+
+const toValues = (p: AdminBlogPost | null): Values => ({
 	title: p?.title ?? "",
 	slug: p?.slug ?? "",
 	excerpt: p?.excerpt ?? "",
@@ -58,22 +82,10 @@ const toValues = (p: BlogPostDetail | null): Values => ({
 	cover: p?.cover ? { id: p.cover.id, url: p.cover.thumbnailUrl || p.cover.url } : null,
 	coverBackground: p?.coverBackground ?? "",
 	readingMinutes: p?.readingMinutes ?? null,
-	blocks: p
-		? p.blocks.map((b, i) => ({
-				key: `s${i}`,
-				type: b.type,
-				text: b.text ?? "",
-				html: b.html ?? "",
-				title: b.title ?? "",
-				items: b.items ?? [],
-				productId: b.product?.id ?? null,
-				imageMediaId: b.image?.id ?? null,
-				imageUrl: b.image ? b.image.thumbnailUrl || b.image.url : null,
-			}))
-		: [newBlock("HEADING"), newBlock("PARAGRAPH")],
+	blocks: p ? toBlocks(p) : [newBlock("HEADING"), newBlock("PARAGRAPH")],
 	tags: p?.tags ?? [],
 	isFeatured: p?.isFeatured ?? false,
-	status: p?.status ?? (p ? "PUBLISHED" : "DRAFT"),
+	status: p?.status ?? "DRAFT",
 	publishedAt: p?.publishedAt ?? null,
 	seo: p?.seo ?? {},
 });
@@ -101,15 +113,16 @@ const toPayload = (v: Values): BlogPostUpsertRequest => ({
 	isFeatured: v.isFeatured,
 	status: v.status,
 	publishedAt: v.publishedAt,
-	seo: v.seo,
+	// canonical, share image and JSON-LD are built by the server (ignored if sent)
+	seo: toSeoInput(v.seo),
 });
 
 type BlogPostFormProps = {
-	post: BlogPostDetail | null;
-	/** Authors seen on the public posts — the contract has no authors list (FEATURES §7 #2). */
+	post: AdminBlogPost | null;
+	/** Authors the posts already have — the contract has no authors list (FEATURES §7 #2). */
 	authors: { id: number; name: string }[];
 	categories: { id: number; name: string }[];
-	onCreated?: (post: BlogPostDetail) => void;
+	onCreated?: (post: AdminBlogPost) => void;
 	onDelete?: () => void;
 };
 
@@ -134,13 +147,18 @@ export default function BlogPostForm({ post, authors, categories, onCreated, onD
 	});
 
 	const local: Record<string, string | null> = {
-		title: !values.title.trim() ? "عنوان را بنویس." : null,
-		slug: !SLUG.test(values.slug) ? "حروف کوچک لاتین، رقم و خط تیره." : null,
+		title: !values.title.trim() ? "عنوان را بنویس." : values.title.trim().length > 120 ? "حداکثر ۱۲۰ حرف." : null,
+		slug: !SLUG.test(values.slug) ? "حروف کوچک لاتین، رقم و خط تیره." : values.slug.length > 100 ? "حداکثر ۱۰۰ حرف." : null,
 		categoryId: !values.categoryId ? "دسته را انتخاب کن." : null,
 		excerpt: values.excerpt.length > 300 ? "حداکثر ۳۰۰ حرف." : null,
-		blocks: !values.blocks.length ? "مقاله حداقل یک بلوک می‌خواهد." : null,
+		lead: values.lead.length > 600 ? "حداکثر ۶۰۰ حرف." : null,
+		coverBackground: values.coverBackground && !HEX.test(values.coverBackground) ? "رنگ مثل #E4D9F3 (شش رقم hex)." : null,
+		readingMinutes: values.readingMinutes != null && (values.readingMinutes < 1 || values.readingMinutes > 60) ? "بین ۱ تا ۶۰ دقیقه، یا خالی." : null,
+		tags: values.tags.length > 10 ? "حداکثر ۱۰ برچسب." : values.tags.some((t) => t.trim().length > 30) ? "هر برچسب حداکثر ۳۰ حرف." : null,
+		blocks: !values.blocks.length ? "مقاله حداقل یک بلوک می‌خواهد." : values.blocks.length > 100 ? "حداکثر ۱۰۰ بلوک." : null,
 	};
-	const server = fieldErrorsOf(save.error);
+	const server = fieldErrorsWith(save.error, CODE_FIELDS);
+	const unavailable = post?.unavailableProductIds ?? [];
 	const err = (k: string) => (touched && local[k]) || server[k] || null;
 
 	const submit = (e: FormEvent<HTMLFormElement>) => {
@@ -183,7 +201,7 @@ export default function BlogPostForm({ post, authors, categories, onCreated, onD
 							footer={<small className="muted">{toPersianDigits(values.excerpt.length)} / ۳۰۰</small>}
 							style={{ minHeight: 70 }}
 						/>
-						<Textarea label="پاراگراف آغازین" labelNote="lead" value={values.lead} onChange={(e) => set("lead", e.target.value)} style={{ minHeight: 70 }} />
+						<Textarea label="پاراگراف آغازین" labelNote="lead، متن ساده" maxLength={600} value={values.lead} onChange={(e) => set("lead", e.target.value)} error={err("lead")} style={{ minHeight: 70 }} />
 					</div>
 				</section>
 
@@ -192,15 +210,20 @@ export default function BlogPostForm({ post, authors, categories, onCreated, onD
 						<Icon name="layers" /> متن مقاله
 					</h3>
 					<p className="d">هر تیتر در فهرست مطالب مقاله هم می‌آید.</p>
+					{!!unavailable.length && (
+						<p className="note cream">
+							{toPersianDigits(unavailable.length)} کارت محصول به محصولی اشاره می‌کند که دیگر در فروشگاه نیست؛ سایت آن بلوک را نشان نمی‌دهد و ذخیره تا عوض یا حذفش رد می‌شود.
+						</p>
+					)}
 					{err("blocks") && <p className="note danger">{err("blocks")}</p>}
-					<BlockEditor blocks={values.blocks} onChange={(b) => set("blocks", b)} errors={server} />
+					<BlockEditor blocks={values.blocks} onChange={(b) => set("blocks", b)} errors={server} unavailableProductIds={unavailable} />
 				</section>
 
 				<section className="fsec">
 					<h3>
 						<Icon name="search" /> SEO
 					</h3>
-					<SeoFields value={values.seo} onChange={(v) => set("seo", v)} errors={server} titlePlaceholder={values.title ? `${values.title} | مجله کیوا` : undefined} />
+					<SeoFields value={values.seo} onChange={(v) => set("seo", v)} errors={server} titlePlaceholder={values.title ? `${values.title} | مجله کیوا` : undefined} serverBuilt />
 				</section>
 			</div>
 
@@ -214,13 +237,14 @@ export default function BlogPostForm({ post, authors, categories, onCreated, onD
 						<div className="field">
 							<label>زمان انتشار</label>
 							<JalaliDateTimeInput value={values.publishedAt} onChange={(d) => set("publishedAt", d)} ariaLabel="زمان انتشار" />
-							<span className="help">خالی = همان لحظه‌ی انتشار</span>
+							<span className="help">خالی = همان لحظه‌ی انتشار؛ زمان آینده = زمان‌بندی</span>
 						</div>
+						{post?.scheduled && <p className="note cream">زمان‌بندی‌شده: از {formatDateTime(post.publishedAt)} در مجله دیده می‌شود.</p>}
 						<Switch label="منتخب سردبیر" checked={values.isFeatured} onChange={(e) => set("isFeatured", e.target.checked)} />
 						<Button type="submit" isLoading={save.isPending} fullWidth>
 							{post ? "ذخیره" : "ساخت مقاله"}
 						</Button>
-						{post && values.status === "PUBLISHED" && (
+						{post && post.status === "PUBLISHED" && !post.scheduled && (
 							<Button variant="white" size="sm" href={`${STORE_URL}/blog/${post.slug}`} target="_blank" rel="noreferrer" iconStart={<Icon name="external" />}>
 								مشاهده در سایت
 							</Button>
@@ -228,6 +252,15 @@ export default function BlogPostForm({ post, authors, categories, onCreated, onD
 						{post?.helpfulStats && (
 							<p className="muted" style={{ fontSize: 12.5 }}>
 								«مفید بود؟» {toPersianDigits(post.helpfulStats.helpfulCount)} آره · {toPersianDigits(post.helpfulStats.notHelpfulCount)} نه
+							</p>
+						)}
+						{post && (
+							<p className="muted" style={{ fontSize: 12.5, lineHeight: 1.9 }}>
+								ساخت {formatDateTime(post.createdAt)}
+								{post.createdBy && ` · ${post.createdBy}`}
+								<br />
+								آخرین ویرایش {formatDateTime(post.updatedAt)}
+								{post.updatedBy && ` · ${post.updatedBy}`}
 							</p>
 						)}
 						{onDelete && (
@@ -247,14 +280,30 @@ export default function BlogPostForm({ post, authors, categories, onCreated, onD
 							<label>رنگ پس‌زمینه‌ی کاور</label>
 							<div style={{ display: "flex", gap: 8 }}>
 								<input type="color" aria-label="رنگ کاور" value={values.coverBackground || "#E4D9F3"} onChange={(e) => set("coverBackground", e.target.value.toUpperCase())} style={{ width: 50, height: 50, border: 0, background: "none", padding: 0 }} />
-								<input className="input ltr" value={values.coverBackground} onChange={(e) => set("coverBackground", e.target.value)} placeholder="#E4D9F3" />
+								<input className="input ltr" value={values.coverBackground} onChange={(e) => set("coverBackground", e.target.value)} placeholder="#E4D9F3" aria-label="کد رنگ کاور" />
 							</div>
+							{err("coverBackground") && <span className="err" style={{ display: "block" }}>{err("coverBackground")}</span>}
 						</div>
 						<Select label="نویسنده" placeholder="—" value={values.authorId} onChange={(e) => set("authorId", e.target.value)} options={authors.map((a) => ({ value: String(a.id), label: a.name }))} error={err("authorId")} />
-						<NumberInput label="زمان مطالعه (دقیقه)" labelNote="خالی = خودکار" value={values.readingMinutes} onChange={(n) => set("readingMinutes", n)} />
+						<NumberInput label="زمان مطالعه (دقیقه)" labelNote="خالی = خودکار" value={values.readingMinutes} onChange={(n) => set("readingMinutes", n)} error={err("readingMinutes")} />
 						<ChipsInput label="برچسب‌ها" value={values.tags} onChange={(t) => set("tags", t)} />
+						{err("tags") && <span className="err" style={{ display: "block" }}>{err("tags")}</span>}
 					</div>
 				</section>
+				{!!post?.feedbackComments.length && (
+					<section className="icard">
+						<h3>
+							<Icon name="chat" /> نظرهای «مفید نبود»
+						</h3>
+						<ul className="note-list">
+							{post.feedbackComments.map((c, i) => (
+								<li key={i}>
+									«{c.comment}»<small>{formatDateTime(c.createdAt)}</small>
+								</li>
+							))}
+						</ul>
+					</section>
+				)}
 			</aside>
 			<UnsavedGuard dirty={dirty && !save.isSuccess} />
 		</form>

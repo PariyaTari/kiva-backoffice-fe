@@ -4,11 +4,13 @@ import {
 	AdminProduct,
 	AdminProductFilters,
 	AdminProductListResponse,
+	AdminStockAlertGroup,
 	AdminVariant,
 	InventoryAdjustment,
 	InventoryReason,
 	ProductStatus,
 	ProductUpsertRequest,
+	StockAlertFilters,
 	VariantUpsertRequest,
 } from "@/types/catalog.type";
 
@@ -74,12 +76,22 @@ export const ProductsEndpoints = {
 		return res.data;
 	},
 
+	/** Manual changes only (and a colour's initial stock), newest first — reservations and shipping aren't in it. */
 	getAdjustments: async (variantId: number | null, page: number, size: number) => {
 		const res = await httpClient.call<{ items: InventoryAdjustment[]; meta: PageMeta }>({
 			method: "GET",
 			url: "admin/inventory/adjustments",
 			params: { variantId: variantId ?? undefined, page, size },
 		});
+		return res.data;
+	},
+
+	/**
+	 * «موجود شد خبرم کن» — active subscriptions grouped per colour (or per product for «any colour»), most waiting first.
+	 * No phone numbers here; the SMS go out on their own when stock comes back (`adjustStock`).
+	 */
+	getStockAlerts: async (filters: StockAlertFilters, page: number, size: number) => {
+		const res = await httpClient.call<{ items: AdminStockAlertGroup[]; meta: PageMeta }>({ method: "GET", url: "admin/stock-alerts", params: { ...filters, page, size } });
 		return res.data;
 	},
 };

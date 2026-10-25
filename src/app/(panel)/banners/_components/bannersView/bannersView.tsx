@@ -62,7 +62,7 @@ export default function BannersView() {
 					</span>
 					<span>
 						<b style={{ whiteSpace: "pre-line" }}>{b.title}</b>
-						<span className="sub">{b.cta.label ? `${b.cta.label} ← ${b.cta.url}` : "بدون دکمه"}</span>
+						<span className="sub">{b.cta ? `${b.cta.label} ← ${b.cta.url}` : "بدون دکمه"}</span>
 					</span>
 				</span>
 			),

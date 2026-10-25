@@ -6,7 +6,7 @@ import { Column } from "@/app/_components/panel/dataTable/dataTable.type";
 import StatusTag from "@/app/_components/panel/statusTag/statusTag";
 import { AdminOrderListItem } from "@/types/order.type";
 import { toPersianDigits } from "@/utils/digits";
-import { formatDateTime, formatPhone, formatPrice, relativeTime } from "@/utils/format";
+import { DELETED_ACCOUNT, formatDateTime, formatPhone, formatPrice, relativeTime } from "@/utils/format";
 import { labelOf, MESSENGER, ORDER_STATUS, ORDER_STATUS_TONE, SHIPPING_METHOD } from "@/utils/labels";
 
 /** Columns of the order queue (`AdminOrderListItem`). */
@@ -40,8 +40,8 @@ export const ORDER_COLUMNS: Column<AdminOrderListItem>[] = [
 		title: "مشتری",
 		render: (o) => (
 			<>
-				{o.customerName}
-				<span className="sub ltr">{formatPhone(o.customerPhone)}</span>
+				{o.customerName ?? (o.customerPhone ? "—" : <span className="muted">{DELETED_ACCOUNT}</span>)}
+				{o.customerPhone && <span className="sub ltr">{formatPhone(o.customerPhone)}</span>}
 			</>
 		),
 	},

@@ -63,7 +63,7 @@ function DecisionForm({ item, onClose }: { item: AdminReturnRequest; onClose: ()
 	});
 
 	const errors = fieldErrorsOf(decide.error);
-	const rejectionMissing = !approve && !rejection.trim();
+	const rejectionMissing = !approve && rejection.trim().length < 3;
 	const submit = () => {
 		setTouched(true);
 		if (!rejectionMissing) decide.mutate();
@@ -149,11 +149,14 @@ function DecisionForm({ item, onClose }: { item: AdminReturnRequest; onClose: ()
 						maxLength={500}
 						value={rejection}
 						onChange={(e) => setRejection(e.target.value)}
-						error={(touched && rejectionMissing && "دلیل رد را بنویس.") || errors.rejectionReason}
+						error={(touched && rejectionMissing && "دلیل رد را بنویس (دست‌کم ۳ حرف).") || errors.rejectionReason}
 						placeholder="مثلاً: مهلت ۷ روزه‌ی بازگشت تمام شده بود."
 						style={{ minHeight: 90 }}
 					/>
 				)}
+				<p className="muted" style={{ fontSize: 12.5 }}>
+					تأیید یا رد هر دو برای مشتری پیامک می‌شود (فقط کد مرجوعی؛ {approve ? "راهنما" : "دلیل رد"} را در جزئیات مرجوعی حسابش می‌بیند).
+				</p>
 			</div>
 			<div className="m-foot">
 				<Button variant="white" onClick={onClose} disabled={decide.isPending}>

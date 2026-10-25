@@ -1,5 +1,5 @@
-/** Blog, FAQ and static pages as the panel edits them (kiva-openapi.yml 1.4.0 · Blog, FAQ, Admin · Content). */
-import { HtmlString, IconName, MediaAsset, SeoMeta } from "./common.type";
+/** Blog, FAQ and static pages as the panel edits them (kiva-openapi.yml 1.21.0 · Blog, FAQ, Admin · Content). */
+import { HtmlString, IconName, MediaAsset, SeoInput, SeoMeta } from "./common.type";
 import { StoreProduct } from "./marketing.type";
 import { PageMeta } from "./pageinate";
 
@@ -22,8 +22,6 @@ export type BlogPostSummary = {
 	author: BlogAuthor | null;
 	isFeatured: boolean;
 	tags: string[];
-	/** Not in the contract's summary (FEATURES §7 #1) — present when the server sends it. */
-	status?: BlogStatus;
 };
 
 export type BlogContentBlock = {
@@ -45,7 +43,26 @@ export type BlogPostDetail = BlogPostSummary & {
 	updatedAt: string;
 };
 
-export type BlogPostList = { featured: BlogPostSummary | null; items: BlogPostSummary[]; meta: PageMeta };
+/**
+ * 1.21.0 `AdminBlogPost` — the post in the panel, in any state. In the list (`GET /admin/blog/posts`) `blocks` and `toc`
+ * are empty; a «کارت محصول» whose product left the store stays with `product = null` and its id in `unavailableProductIds`.
+ */
+export type AdminBlogPost = BlogPostDetail & {
+	status: BlogStatus;
+	/** `PUBLISHED` with a future `publishedAt` — not on the magazine yet. */
+	scheduled: boolean;
+	createdAt: string;
+	/** Full name, else the masked phone, or «سیستم». */
+	createdBy?: string;
+	updatedBy?: string;
+	unavailableProductIds: number[];
+	/** The last 50 «مفید نبود» comments, newest first — nothing about who wrote them. */
+	feedbackComments: { comment: string; createdAt: string }[];
+};
+
+/** `GET /admin/blog/posts` — newest edit (`updatedAt`) first. */
+export type AdminBlogPostList = { items: AdminBlogPost[]; meta: PageMeta };
+export type AdminBlogFilters = { status?: BlogStatus; q?: string; category?: string };
 
 /** A block as it is sent: product and image by id. */
 export type BlogBlockInput = {
@@ -76,7 +93,20 @@ export type BlogPostUpsertRequest = {
 	seo?: SeoMeta;
 };
 
-export type FaqItem = { id?: number; question: string; answer: HtmlString; sortOrder?: number };
-export type FaqGroup = { id: string; name: string; icon: IconName; isSignature: boolean; sortOrder?: number; questions: FaqItem[] };
+/** `GET /admin/faq/groups` — the highlighted texts are always `null` here (they're for the storefront's `q`). */
+export type FaqItem = { id: number; question: string; answer: HtmlString; questionHighlighted?: string | null; answerHighlighted?: string | null; sortOrder: number };
+export type FaqGroup = { id: string; name: string; icon: IconName | null; isSignature: boolean; sortOrder: number; questions: FaqItem[] };
 
-export type StaticPage = { slug: string; title: string; content: HtmlString; updatedAt?: string; seo?: SeoMeta };
+/** 1.12.0 — a question in `PUT /admin/faq/groups`: with `id` the same one (even moved to another group), without it a new one. */
+export type FaqItemInput = { id?: number | null; question: string; answer: string };
+/** 1.12.0 — a group in `PUT /admin/faq/groups` (at most 20, each up to 50 questions); order = array order. */
+export type FaqGroupInput = { id: string; name: string; icon?: IconName | null; isSignature?: boolean; questions: FaqItemInput[] };
+
+/** `GET /pages/{slug}` — `seo` is complete there (canonical built by the server, no share image yet). */
+export type StaticPage = { slug: string; title: string; content: HtmlString; updatedAt: string; seo: SeoMeta };
+
+/** 1.12.0 `StaticPageUpsertRequest` — `slug` absent or the path's own; title 1–120; content 1–50,000 after cleaning. */
+export type StaticPageUpsertRequest = { slug?: string | null; title: string; content: string; seo?: SeoInput | null };
+
+/** A row of `GET /admin/pages` (no content), by `slug`. */
+export type AdminStaticPageSummary = { slug: string; title: string; updatedAt: string };

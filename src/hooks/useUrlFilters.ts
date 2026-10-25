@@ -30,7 +30,8 @@ export function useUrlFilters<T extends FilterValues>(defaults: T): [T, (patch: 
 			const base = JSON.parse(defaultsKey) as T;
 			const next = new URLSearchParams(query);
 			Object.entries(patch).forEach(([key, value]) => {
-				if (value === undefined || value === "" || value === base[key]) next.delete(key);
+				// "" is kept when it isn't the default («همه» next to a default tab), else it would read back as the default
+				if (value === undefined || value === base[key]) next.delete(key);
 				else next.set(key, String(value));
 			});
 			const qs = next.toString();

@@ -6,7 +6,7 @@
 import { DAY, HOUR, checker, fail, iso, listParam, normQ, notFound, paginate, route, SLUG } from "../lib.mjs";
 import { staff } from "../auth.mjs";
 import { assets } from "../media.mjs";
-import { available, bagImage, categoryById, colorByKey, colorView, productById, products, stockStatusOf, variantCompareAt, variantImage, variantPrice } from "../catalog.mjs";
+import { available, bagImage, categoryById, colorView, productById, products, stockStatusOf, variantCompareAt, variantImage, variantPrice } from "../catalog.mjs";
 import * as D from "../data.mjs";
 
 const NOW = Date.now();
@@ -78,11 +78,11 @@ const discounts = Object.entries(D.CODES).map(([code, c], i) => ({
 	id: ++DISCOUNT_SEQ, code, type: c.type, value: c.value, label: c.label, minSubtotal: c.min ?? null, maxDiscount: c.type === "PERCENT" ? 500000 : null,
 	startsAt: iso(NOW - 40 * DAY), endsAt: code === "PAEEZ15" ? iso(NOW + 20 * DAY) : null, usageLimit: code === "WELCOME" ? null : 1000, perUserLimit: 1,
 	firstOrderOnly: code === "WELCOME", requiresLogin: code === "WELCOME", excludeSaleItems: code === "PAEEZ15", categoryIds: [], productIds: [], isActive: true,
-	usedCount: [132, 418, 57][i], totalDiscountGiven: [16_400_000, 62_700_000, 9_800_000][i], createdAt: iso(NOW - (60 - i * 10) * DAY),
+	usedCount: [132, 418, 57][i], totalDiscountGiven: [16_400_000, 62_700_000, 9_800_000][i], createdAt: iso(NOW - (60 - i * 10) * DAY), updatedAt: iso(NOW - (30 - i * 5) * DAY),
 }));
 discounts.push({
 	id: ++DISCOUNT_SEQ, code: "YALDA1404", type: "PERCENT", value: 20, label: "۲۰٪ تخفیف یلدا", minSubtotal: 1500000, maxDiscount: 700000, startsAt: iso(NOW - 300 * DAY), endsAt: iso(NOW - 290 * DAY),
-	usageLimit: 500, perUserLimit: 1, firstOrderOnly: false, requiresLogin: false, excludeSaleItems: true, categoryIds: [1, 2], productIds: [], isActive: false, usedCount: 500, totalDiscountGiven: 98_000_000, createdAt: iso(NOW - 320 * DAY),
+	usageLimit: 500, perUserLimit: 1, firstOrderOnly: false, requiresLogin: false, excludeSaleItems: true, categoryIds: [1, 2], productIds: [], isActive: false, usedCount: 500, totalDiscountGiven: 98_000_000, createdAt: iso(NOW - 320 * DAY), updatedAt: iso(NOW - 289 * DAY),
 });
 function checkDiscount(b, self) {
 	checker()
@@ -99,8 +99,8 @@ function checkDiscount(b, self) {
 const applyDiscount = (d, b) =>
 	Object.assign(d, {
 		code: b.code, type: b.type, value: b.value, label: b.label.trim(), minSubtotal: b.minSubtotal ?? null, maxDiscount: b.type === "PERCENT" ? (b.maxDiscount ?? null) : null,
-		startsAt: b.startsAt ?? null, endsAt: b.endsAt ?? null, usageLimit: b.usageLimit ?? null, perUserLimit: b.perUserLimit ?? 1, firstOrderOnly: !!b.firstOrderOnly,
-		requiresLogin: !!b.requiresLogin, excludeSaleItems: !!b.excludeSaleItems, categoryIds: b.categoryIds ?? [], productIds: b.productIds ?? [], isActive: b.isActive ?? true,
+		startsAt: b.startsAt ?? null, endsAt: b.endsAt ?? null, usageLimit: b.usageLimit ?? null, perUserLimit: b.perUserLimit ?? null, firstOrderOnly: !!b.firstOrderOnly,
+		requiresLogin: !!b.requiresLogin, excludeSaleItems: !!b.excludeSaleItems, categoryIds: b.categoryIds ?? [], productIds: b.productIds ?? [], isActive: b.isActive ?? true, updatedAt: iso(Date.now()),
 	});
 route("GET", "/admin/discount-codes", (ctx) => {
 	staff(ctx);
@@ -137,25 +137,37 @@ const campaigns = [
 	{ id: ++CAMPAIGN_SEQ, slug: "paeez-1405", title: "جشنواره پاییزه", subtitle: "تا پایان جشنواره فرصت داری", icon: "fire", startsAt: NOW - 5 * DAY, endsAt: NOW + 6 * DAY + 5 * HOUR, productIds: [], isActive: true },
 	{ id: ++CAMPAIGN_SEQ, slug: "yalda-1404", title: "یلدای کیوا", subtitle: "بلندترین شب، بیشترین تخفیف", icon: "sparkle", startsAt: NOW - 300 * DAY, endsAt: NOW - 296 * DAY, productIds: [2, 4, 7], isActive: false },
 ];
-const campaignProducts = (c) => (c.productIds.length ? c.productIds.map(productById).filter(Boolean) : products.filter((p) => p.status === "ACTIVE" && p.compareAtPrice));
+/** `productIds` (or every published product) with a discount and a colour in stock, biggest discount first. */
+const campaignProducts = (c) =>
+	(c.productIds.length ? c.productIds.map(productById).filter(Boolean) : products)
+		.filter((p) => p.status === "ACTIVE" && p.compareAtPrice && p.variants.some((v) => v.isActive && available(v) > 0))
+		.sort((a, b) => b.compareAtPrice / b.price - a.compareAtPrice / a.price);
+// `AdminCampaign` = `Campaign` + the stored choice of products (1.5.0)
 const campaignView = (c) => ({
 	id: c.id, slug: c.slug, title: c.title, subtitle: c.subtitle, icon: c.icon, startsAt: iso(c.startsAt), endsAt: iso(c.endsAt), serverTime: iso(Date.now()),
-	products: campaignProducts(c).map(summary), seeAllUrl: "/products?onSale=true", isActive: c.isActive,
-	// not in `Campaign` — the panel needs the chosen ids back to edit them (FEATURES §7 #21)
-	productIds: c.productIds,
+	products: campaignProducts(c).slice(0, 24).map(summary), seeAllUrl: `/products?campaign=${c.slug}`, isActive: c.isActive, productIds: c.productIds,
 });
 function checkCampaign(b, self) {
-	checker()
-		.need(SLUG.test(b.slug || ""), "slug", "slug فقط حروف کوچک لاتین، رقم و خط تیره.")
-		.need(nonEmpty(b.title), "title", "عنوان را بنویس.")
+	const ids = (b.productIds || []).map(Number);
+	const c = checker()
+		.need(SLUG.test(b.slug || "") && String(b.slug).length <= 60, "slug", "slug فقط حروف کوچک لاتین، رقم و خط تیره (حداکثر ۶۰).", "SLUG_INVALID")
+		.need(nonEmpty(b.title) && String(b.title).trim().length <= 80, "title", "عنوان ۱ تا ۸۰ حرف.")
+		.need(!b.subtitle || String(b.subtitle).length <= 120, "subtitle", "زیرعنوان حداکثر ۱۲۰ حرف.")
 		.need(!!b.startsAt && validDate(b.startsAt), "startsAt", "زمان شروع را وارد کن.")
-		.need(!!b.endsAt && validDate(b.endsAt) && Date.parse(b.endsAt) > Date.parse(b.startsAt), "endsAt", "پایان باید بعد از شروع باشد.")
-		.need((b.productIds || []).every((id) => productById(id)), "productIds", "یکی از محصول‌ها پیدا نشد.")
-		.done();
-	if (campaigns.some((c) => c !== self && c.slug === b.slug)) fail(409, "DUPLICATE_SLUG", "این slug قبلاً استفاده شده.", { errors: [{ field: "slug", code: "DUPLICATE_SLUG", message: "این slug تکراریه." }] });
+		.need(!!b.endsAt && validDate(b.endsAt) && Date.parse(b.endsAt) > Date.parse(b.startsAt), "endsAt", "پایان باید بعد از شروع باشد.", "DATE_RANGE_INVALID")
+		.need(ids.length <= 200, "productIds", "حداکثر ۲۰۰ محصول.")
+		.need(new Set(ids).size === ids.length, "productIds", "محصول تکراری در لیست است.", "LIST_ITEM_DUPLICATE");
+	ids.forEach((id, i) => c.need(!!productById(id) && productById(id).status !== "ARCHIVED", `productIds.${i}`, "این محصول پیدا نشد یا بایگانی شده.", "PRODUCT_NOT_FOUND"));
+	c.done();
+	if (campaigns.some((x) => x !== self && x.slug === b.slug)) fail(409, "DUPLICATE_SLUG", "این slug قبلاً استفاده شده.", { errors: [{ field: "slug", code: "DUPLICATE_SLUG", message: "این slug تکراریه." }] });
+	// two active campaigns never overlap — only one runs on the site at a time
+	const from = Date.parse(b.startsAt), to = Date.parse(b.endsAt);
+	const clash = (b.isActive ?? true) && campaigns.find((x) => x !== self && x.isActive && x.startsAt < to && from < x.endsAt);
+	if (clash) fail(409, "CAMPAIGN_OVERLAP", "بازه‌ی این کمپین با یک کمپین فعال دیگر هم‌پوشانی دارد.", { meta: { campaignId: clash.id } });
 }
+// `PUT` replaces everything (1.21.0): an optional field left out is `null` / its default
 const applyCampaign = (c, b) =>
-	Object.assign(c, { slug: b.slug, title: b.title.trim(), subtitle: b.subtitle ?? "", icon: b.icon || "fire", startsAt: Date.parse(b.startsAt), endsAt: Date.parse(b.endsAt), productIds: (b.productIds || []).map(Number), isActive: b.isActive ?? true });
+	Object.assign(c, { slug: b.slug, title: b.title.trim(), subtitle: b.subtitle?.trim() || null, icon: b.icon || null, startsAt: Date.parse(b.startsAt), endsAt: Date.parse(b.endsAt), productIds: (b.productIds || []).map(Number), isActive: b.isActive ?? true });
 route("GET", "/campaigns/active", (ctx) => {
 	const c = campaigns.find((x) => x.isActive && x.startsAt <= Date.now() && x.endsAt > Date.now());
 	if (!c) {
@@ -182,6 +194,14 @@ route("PUT", "/admin/campaigns/:id", (ctx) => {
 	checkCampaign(ctx.body || {}, c);
 	return campaignView(applyCampaign(c, ctx.body));
 });
+// display only — deleting one changes no price
+route("DELETE", "/admin/campaigns/:id", (ctx) => {
+	staff(ctx, ...MARKETING);
+	const i = campaigns.findIndex((x) => x.id === Number(ctx.params.id));
+	if (i < 0) notFound("NOT_FOUND", "کمپین پیدا نشد.");
+	campaigns.splice(i, 1);
+	ctx.status = 204;
+});
 
 // ───────────── banners ─────────────
 let BANNER_SEQ = 0;
@@ -192,23 +212,32 @@ const banners = [
 	{ placement: "SHOP_TOP", theme: "LILAC", tagLabel: "جشنواره پاییزه", tagIcon: "fire", title: "تا ۲۰٪ تخفیف کیف‌های پاییزی", text: "رنگ‌های گرم فصل با عکس واقعی قبل از ارسال.", ctaLabel: "دیدن حراج", ctaUrl: "/products?onSale=true", image: seedImage("TOTE", "caramel"), overlayHighlight: null, overlayTitle: null, overlaySubtitle: null, overlayChannel: null, sortOrder: 1, startsAt: iso(NOW - 5 * DAY), endsAt: iso(NOW + 6 * DAY) },
 ].map((b) => ({ id: ++BANNER_SEQ, ...b }));
 const bannerView = (b) => ({
-	id: b.id, placement: b.placement, theme: b.theme, tag: b.tagLabel ? { label: b.tagLabel, icon: b.tagIcon } : null, title: b.title, text: b.text,
-	cta: { label: b.ctaLabel, url: b.ctaUrl }, image: b.image, overlay: b.overlayTitle || b.overlayHighlight ? { highlight: b.overlayHighlight, title: b.overlayTitle, subtitle: b.overlaySubtitle, channel: b.overlayChannel } : null,
+	id: b.id, placement: b.placement, theme: b.theme, tag: b.tagLabel ? { label: b.tagLabel, icon: b.tagIcon } : null, title: b.title, text: b.text || null,
+	// a banner without a button: `cta = null` (1.21.0)
+	cta: b.ctaLabel && b.ctaUrl ? { label: b.ctaLabel, url: b.ctaUrl } : null, image: b.image,
+	overlay: b.overlayTitle || b.overlayHighlight || b.overlaySubtitle || b.overlayChannel ? { highlight: b.overlayHighlight, title: b.overlayTitle, subtitle: b.overlaySubtitle, channel: b.overlayChannel } : null,
 	sortOrder: b.sortOrder, startsAt: b.startsAt, endsAt: b.endsAt,
 });
 function bannerFrom(b, prev) {
+	const len = (v) => String(v ?? "").trim().length;
 	checker()
 		.need(PLACEMENTS.includes(b.placement), "placement", "جایگاه را انتخاب کن.")
 		.need(!b.theme || THEMES.includes(b.theme), "theme", "تم معتبر نیست.")
-		.need(nonEmpty(b.title), "title", "عنوان را بنویس.")
-		.need(!b.imageMediaId || assets.has(b.imageMediaId) || b.imageMediaId === prev?.image?.id, "imageMediaId", "عکس پیدا نشد؛ دوباره آپلود کن.")
+		.need(len(b.title) >= 1 && len(b.title) <= 80, "title", "عنوان ۱ تا ۸۰ حرف.")
+		.need(len(b.text) <= 200, "text", "متن حداکثر ۲۰۰ حرف.")
+		.need(len(b.tagLabel) <= 30, "tagLabel", "برچسب حداکثر ۳۰ حرف.")
+		.need(!len(b.ctaLabel) === !len(b.ctaUrl), "ctaUrl", "متن و لینک دکمه با هم، یا هیچ‌کدام.", "CTA_INCOMPLETE")
+		.need(!len(b.ctaUrl) || /^(https:\/\/\S+|\/\S*)$/.test(String(b.ctaUrl).trim()), "ctaUrl", "آدرس کامل https:// یا مسیری از همین سایت با /.", "URL_INVALID")
+		.need(!!b.imageMediaId, "imageMediaId", "عکس بنر را آپلود کن.", "IMAGE_REQUIRED")
+		.need(!b.imageMediaId || assets.has(b.imageMediaId) || b.imageMediaId === prev?.image?.id, "imageMediaId", "عکس پیدا نشد؛ دوباره آپلود کن.", "MEDIA_NOT_FOUND")
 		.need(!b.overlayChannel || CHANNELS.includes(b.overlayChannel), "overlayChannel", "پیام‌رسان معتبر نیست.")
-		.need(validDate(b.startsAt) && validDate(b.endsAt) && !(b.startsAt && b.endsAt && Date.parse(b.endsAt) <= Date.parse(b.startsAt)), "endsAt", "پایان باید بعد از شروع باشد.")
+		.need(validDate(b.startsAt) && validDate(b.endsAt) && !(b.startsAt && b.endsAt && Date.parse(b.endsAt) <= Date.parse(b.startsAt)), "endsAt", "پایان باید بعد از شروع باشد.", "DATE_RANGE_INVALID")
 		.done();
-	const a = b.imageMediaId ? assets.get(b.imageMediaId) : null;
+	const a = assets.get(b.imageMediaId);
 	return {
-		placement: b.placement, theme: b.theme || "CREAM", tagLabel: b.tagLabel || null, tagIcon: b.tagIcon || null, title: b.title.trim(), text: b.text ?? "", ctaLabel: b.ctaLabel ?? "", ctaUrl: b.ctaUrl ?? "",
-		image: a ? { id: a.id, type: a.type, url: a.url, thumbnailUrl: a.thumbnailUrl, alt: a.alt } : b.imageMediaId ? prev?.image ?? null : null,
+		placement: b.placement, theme: b.theme || "CREAM", tagLabel: b.tagLabel?.trim() || null, tagIcon: b.tagIcon || null, title: b.title.trim(), text: b.text?.trim() || null,
+		ctaLabel: b.ctaLabel?.trim() || null, ctaUrl: b.ctaUrl?.trim() || null,
+		image: a ? { id: a.id, type: a.type, url: a.url, thumbnailUrl: a.thumbnailUrl, alt: a.alt } : prev?.image ?? null,
 		overlayHighlight: b.overlayHighlight || null, overlayTitle: b.overlayTitle || null, overlaySubtitle: b.overlaySubtitle || null, overlayChannel: b.overlayChannel || null,
 		sortOrder: b.sortOrder ?? 0, startsAt: b.startsAt ?? null, endsAt: b.endsAt ?? null,
 	};
@@ -250,16 +279,24 @@ export let announcements = [
 /** `/config` — other parts (shipping, support, gateways…) come with the settings phase. */
 export const configParts = { announcements: () => announcements.filter((a) => (!a.startsAt || Date.parse(a.startsAt) <= Date.now()) && (!a.endsAt || Date.parse(a.endsAt) > Date.now())) };
 route("GET", "/config", () => Object.fromEntries(Object.entries(configParts).map(([k, f]) => [k, f()])));
+// 1.5.0 — every message, scheduled and ended ones too, in their order
+route("GET", "/admin/announcements", (ctx) => {
+	staff(ctx, ...MARKETING);
+	return announcements;
+});
 route("PUT", "/admin/announcements", (ctx) => {
 	staff(ctx, ...MARKETING);
 	const list = Array.isArray(ctx.body) ? ctx.body : fail(400, "VALIDATION_ERROR", "لیست پیام‌ها لازمه.");
-	const c = checker();
+	// a root array: errors at `{i}.field`
+	const c = checker().need(list.length <= 10, "announcements", "حداکثر ۱۰ پیام.");
 	list.forEach((a, i) => {
-		c.need(nonEmpty(a.text) && String(a.text).length <= 200, `[${i}].text`, "متن پیام لازم است (حداکثر ۲۰۰ حرف).");
-		c.need(validDate(a.startsAt) && validDate(a.endsAt), `[${i}].endsAt`, "تاریخ معتبر نیست.");
+		c.need(nonEmpty(a.text) && String(a.text).length <= 200, `${i}.text`, "متن پیام لازم است (حداکثر ۲۰۰ حرف).");
+		c.need(!a.url || /^(https:\/\/\S+|\/(?!\/)\S*)$/.test(a.url), `${i}.url`, "لینک با https:// یا مسیری از همین سایت با /.", "URL_INVALID");
+		c.need(validDate(a.startsAt) && validDate(a.endsAt) && !(a.startsAt && a.endsAt && Date.parse(a.endsAt) <= Date.parse(a.startsAt)), `${i}.endsAt`, "پایان باید بعد از شروع باشد.");
 	});
 	c.done();
-	announcements = list.map((a, i) => ({ id: a.id ?? ++ANN_SEQ, icon: a.icon || "info", text: a.text.trim(), url: a.url || null, sortOrder: a.sortOrder ?? i + 1, startsAt: a.startsAt ?? null, endsAt: a.endsAt ?? null }));
+	// order = array order; with `id` the same message, without it a new one
+	announcements = list.map((a, i) => ({ id: a.id ?? ++ANN_SEQ, icon: a.icon || null, text: a.text.trim(), url: a.url || null, sortOrder: i, startsAt: a.startsAt ?? null, endsAt: a.endsAt ?? null }));
 	return announcements;
 });
 
@@ -277,32 +314,48 @@ const testimonialView = (t) => {
 		id: t.id, customerName: t.customerName, customerInitial: t.customerName[0], city: t.city, source: t.source, sourceName: SOURCE_NAME[t.source], message: t.message,
 		messageTime: t.messageTime, receivedAt: iso(t.receivedAt), rating: t.rating,
 		product: p ? { id: p.id, slug: p.slug, sku: p.sku, name: p.name, imageUrl: variantImage(p, p.variants[0]), colorKey: t.colorKey } : null,
-		color: colorView(t.colorKey), screenshotUrl: t.screenshot?.url ?? null,
-		// not in `Testimonial` — the panel's edit form needs them (FEATURES §7 #3)
-		isPublished: t.isPublished, sortOrder: t.sortOrder,
+		color: t.colorKey ? colorView(t.colorKey) : null, screenshotUrl: t.screenshot?.url ?? null,
+		// `AdminTestimonial` (1.5.0) — what only the edit form needs
+		isPublished: t.isPublished, sortOrder: t.sortOrder, screenshotMediaId: t.screenshot?.id ?? null, createdAt: iso(t.createdAt ?? t.receivedAt ?? NOW),
 	};
 };
 function testimonialFrom(b, prev) {
+	const len = (v) => String(v ?? "").trim().length;
+	const p = productById(b.productId);
 	checker()
-		.need(nonEmpty(b.customerName), "customerName", "نام مشتری را بنویس.")
+		.need(len(b.customerName) >= 1 && len(b.customerName) <= 40, "customerName", "نام مشتری ۱ تا ۴۰ حرف.")
+		.need(len(b.city) <= 40, "city", "شهر حداکثر ۴۰ حرف.")
 		.need(CHANNELS.includes(b.source), "source", "منبع پیام را انتخاب کن.")
-		.need(nonEmpty(b.message) && String(b.message).length <= 500, "message", "متن پیام لازم است (حداکثر ۵۰۰ حرف).")
-		.need(!!productById(b.productId), "productId", "محصول را انتخاب کن.")
-		.need(!b.colorKey || !!colorByKey(b.colorKey), "colorKey", "رنگ معتبر نیست.")
+		.need(len(b.message) >= 1 && String(b.message).length <= 500, "message", "متن پیام لازم است (حداکثر ۵۰۰ حرف).")
+		.need(!!p && p.status !== "ARCHIVED", "productId", "این محصول پیدا نشد یا بایگانی شده.", "PRODUCT_NOT_FOUND")
+		// the colour must be one of the product's (1.21.0)
+		.need(!b.colorKey || !!p?.variants.some((v) => v.colorKey === b.colorKey), "colorKey", "این رنگ روی این محصول نیست.", "COLOR_NOT_FOUND")
 		.need(b.rating == null || (Number.isInteger(b.rating) && b.rating >= 1 && b.rating <= 5), "rating", "امتیاز ۱ تا ۵.")
-		.need(!b.messageTime || /^\d{1,2}:\d{2}$/.test(b.messageTime), "messageTime", "ساعت مثل 11:17.")
-		.need(!b.screenshotMediaId || assets.has(b.screenshotMediaId), "screenshotMediaId", "اسکرین‌شات پیدا نشد؛ دوباره آپلود کن.")
+		.need(!b.messageTime || /^\d{2}:\d{2}$/.test(b.messageTime), "messageTime", "ساعت مثل 09:17.")
+		.need(!b.receivedAt || Date.parse(b.receivedAt) <= Date.now(), "receivedAt", "تاریخ دریافت بعد از الان نمی‌شود.", "DATE_IN_FUTURE")
+		.need(!b.screenshotMediaId || assets.has(b.screenshotMediaId) || b.screenshotMediaId === prev?.screenshot?.id, "screenshotMediaId", "اسکرین‌شات پیدا نشد؛ دوباره آپلود کن.", "MEDIA_NOT_FOUND")
 		.done();
-	const shot = "screenshotMediaId" in b ? (b.screenshotMediaId ? assets.get(b.screenshotMediaId) : null) : prev?.screenshot ?? null;
+	const shot = b.screenshotMediaId ? assets.get(b.screenshotMediaId) ?? prev?.screenshot ?? null : null;
+	// `PUT` replaces everything: a field left out is `null` / its default
 	return {
-		customerName: b.customerName.trim(), city: b.city ?? "", source: b.source, message: b.message.trim(), messageTime: b.messageTime || "12:00",
-		receivedAt: b.receivedAt ? Date.parse(b.receivedAt) : prev?.receivedAt ?? Date.now(), rating: b.rating ?? 5, productId: Number(b.productId),
-		colorKey: b.colorKey || productById(b.productId).variants[0]?.colorKey, screenshot: shot, isPublished: b.isPublished ?? true, sortOrder: b.sortOrder ?? prev?.sortOrder ?? testimonials.length + 1,
+		customerName: b.customerName.trim(), city: b.city?.trim() || null, source: b.source, message: b.message.trim(), messageTime: b.messageTime || null,
+		receivedAt: b.receivedAt ? Date.parse(b.receivedAt) : null, rating: b.rating ?? 5, productId: Number(b.productId),
+		colorKey: b.colorKey || null, screenshot: shot, isPublished: b.isPublished ?? true, sortOrder: b.sortOrder ?? 0, createdAt: prev?.createdAt ?? Date.now(),
 	};
 }
+// `sortOrder` up, then `receivedAt` down (undated last), then id down
+const byTestimonialOrder = (a, b) => a.sortOrder - b.sortOrder || (b.receivedAt ?? -Infinity) - (a.receivedAt ?? -Infinity) || b.id - a.id;
 route("GET", "/testimonials", (ctx) => {
-	const list = testimonials.filter((t) => t.isPublished).sort((a, b) => a.sortOrder - b.sortOrder);
+	const list = testimonials.filter((t) => t.isPublished).sort(byTestimonialOrder);
 	return { summary: { averageRating: 4.9, scale: 5, totalCount: 2480, metrics: [], sources: CHANNELS }, ...paginate(list.map(testimonialView), ctx.query, 20) };
+});
+// 1.5.0 — published and unpublished, same order as the storefront
+route("GET", "/admin/testimonials", (ctx) => {
+	staff(ctx, ...MARKETING);
+	const { published } = ctx.query;
+	if (published != null && published !== "" && !["true", "false"].includes(published)) fail(400, "VALIDATION_ERROR", "مقدار published معتبر نیست.", { errors: [{ field: "published", code: "BOOLEAN_INVALID", message: "فقط true یا false." }] });
+	const list = testimonials.filter((t) => !published || String(t.isPublished) === published).sort(byTestimonialOrder);
+	return paginate(list.map(testimonialView), ctx.query, 20);
 });
 route("POST", "/admin/testimonials", (ctx) => {
 	staff(ctx, ...MARKETING);
@@ -323,4 +376,26 @@ route("DELETE", "/admin/testimonials/:id", (ctx) => {
 	if (i < 0) notFound("NOT_FOUND", "پیام رضایت پیدا نشد.");
 	testimonials.splice(i, 1);
 	ctx.status = 204;
+});
+
+// ───────────── newsletter (ADMIN only — e-mails are personal data) ─────────────
+const NEWSLETTER_NAMES = ["sara", "maryam", "niloofar", "zahra", "fatemeh", "reyhane", "mahsa", "elham", "parisa", "shirin", "negar", "yasaman", "ali", "reza", "hamid", "sina"];
+const NEWSLETTER_HOSTS = ["gmail.com", "yahoo.com", "outlook.com", "chmail.ir"];
+let NEWSLETTER_SEQ = 300;
+const subscriptions = Array.from({ length: 46 }, (_, i) => {
+	const off = i % 7 === 3;
+	const at = NOW - (i * 2.3 + 0.4) * DAY;
+	return {
+		id: ++NEWSLETTER_SEQ, email: `${NEWSLETTER_NAMES[i % NEWSLETTER_NAMES.length]}${i > 15 ? i : ""}@${NEWSLETTER_HOSTS[i % NEWSLETTER_HOSTS.length]}`,
+		status: off ? "UNSUBSCRIBED" : "ACTIVE", source: ["footer", "footer", "blog", null, "checkout"][i % 5], subscribedAt: at, unsubscribedAt: off ? at + 6 * DAY : null,
+	};
+});
+route("GET", "/admin/newsletter/subscriptions", (ctx) => {
+	staff(ctx); // ADMIN only
+	const { status, q } = ctx.query;
+	if (status && !["ACTIVE", "UNSUBSCRIBED"].includes(status)) fail(400, "VALIDATION_ERROR", "وضعیت معتبر نیست.", { errors: [{ field: "status", code: "INVALID", message: "وضعیت معتبر نیست." }] });
+	const term = String(q ?? "").trim().toLowerCase();
+	const list = subscriptions.filter((s) => (!status || s.status === status) && (!term || s.email.includes(term))).sort((a, b) => b.subscribedAt - a.subscribedAt);
+	const { items, meta } = paginate(list, ctx.query, 20);
+	return { items: items.map((s) => ({ ...s, subscribedAt: iso(s.subscribedAt), unsubscribedAt: iso(s.unsubscribedAt) })), meta };
 });

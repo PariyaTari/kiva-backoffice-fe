@@ -16,7 +16,7 @@ import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { AdminContactMessage, ContactTopic, TicketStatus } from "@/types/support.type";
 import { toErrorView } from "@/utils/apiError";
 import { formatDateTime, formatPhone, relativeTime } from "@/utils/format";
-import { CONTACT_TOPIC, labelOf, optionsOf, TICKET_STATUS, TICKET_STATUS_TONE } from "@/utils/labels";
+import { CONTACT_TOPIC, labelOf, optionsOf, REPLY_CHANNEL, TICKET_STATUS, TICKET_STATUS_TONE } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 import { ContactEndpoints } from "../../_api/contactEndpoints";
 import TicketModal from "../ticketModal/ticketModal";
@@ -69,7 +69,12 @@ const COLUMNS: Column<AdminContactMessage>[] = [
 		render: (t) => (
 			<>
 				<StatusTag value={t.status} labels={TICKET_STATUS} tones={TICKET_STATUS_TONE} />
-				{t.reply && <span className="sub">پاسخ داده شده</span>}
+				{t.reply && (
+					<span className="sub">
+						پاسخ{t.replyChannel && ` با ${labelOf(REPLY_CHANNEL, t.replyChannel)}`}
+						{t.repliedBy && ` · ${t.repliedBy}`}
+					</span>
+				)}
 			</>
 		),
 	},
@@ -95,7 +100,7 @@ export default function ContactView() {
 
 	return (
 		<>
-			<PageHead title="پیام‌های تماس" subtitle="پیام‌های فرم «تماس با ما»؛ پاسخ با پیامک یا ایمیل برای مشتری می‌رود." />
+			<PageHead title="پیام‌های تماس" subtitle="پیام‌های فرم «تماس با ما». پاسخ ایمیلی متن کامل را می‌برد؛ با پیامک فقط خبر و کد پیگیری می‌رود و تماس با شماست. بسته‌های قدیمی‌تر از یک سال پاک می‌شوند." />
 			<div className="fbar">
 				<select className="select" aria-label="موضوع" value={f.topic} onChange={(e) => setF({ topic: e.target.value })}>
 					<option value="">همه‌ی موضوع‌ها</option>

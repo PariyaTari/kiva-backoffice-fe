@@ -1,24 +1,28 @@
 import { httpClient } from "@/httpClient/HttpClient";
 import { PageMeta } from "@/types/pageinate";
-import { Testimonial, TestimonialUpsertRequest } from "@/types/marketing.type";
+import { AdminTestimonial, TestimonialUpsertRequest } from "@/types/marketing.type";
 
 /**
- * «مشتری‌ها چی می‌گن» — writes are `/admin/testimonials*` (ADMIN, CONTENT_EDITOR); there is no admin list
- * (FEATURES §7 #3), so the table reads the public `GET /testimonials` (published ones only).
+ * «مشتری‌ها چی می‌گن» — `/admin/testimonials*` (ADMIN, CONTENT_EDITOR): the list has unpublished ones too, by
+ * `sortOrder` then newest; `published` narrows it.
  */
 export const TestimonialsEndpoints = {
-	getPublished: async (page: number, size: number) => {
-		const res = await httpClient.call<{ items: Testimonial[]; meta: PageMeta }>({ method: "GET", url: "testimonials", params: { page, size } });
+	getTestimonials: async (published: boolean | null, page: number, size: number) => {
+		const res = await httpClient.call<{ items: AdminTestimonial[]; meta: PageMeta }>({
+			method: "GET",
+			url: "admin/testimonials",
+			params: { published: published ?? undefined, page, size },
+		});
 		return res.data;
 	},
 
 	create: async (payload: TestimonialUpsertRequest) => {
-		const res = await httpClient.call<Testimonial>({ method: "POST", url: "admin/testimonials", data: payload });
+		const res = await httpClient.call<AdminTestimonial>({ method: "POST", url: "admin/testimonials", data: payload });
 		return res.data;
 	},
 
 	update: async (id: number, payload: TestimonialUpsertRequest) => {
-		const res = await httpClient.call<Testimonial>({ method: "PUT", url: `admin/testimonials/${id}`, data: payload });
+		const res = await httpClient.call<AdminTestimonial>({ method: "PUT", url: `admin/testimonials/${id}`, data: payload });
 		return res.data;
 	},
 

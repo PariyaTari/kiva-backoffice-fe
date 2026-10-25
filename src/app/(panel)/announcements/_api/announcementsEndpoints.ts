@@ -1,17 +1,17 @@
 import { httpClient } from "@/httpClient/HttpClient";
-import { Announcement } from "@/types/marketing.type";
+import { Announcement, AnnouncementInput } from "@/types/marketing.type";
 
 /**
- * The top bar's rotating messages. Writing replaces the whole ordered list (`PUT /admin/announcements`); there is
- * no admin read (FEATURES §7 #5), so the current list comes from the public `GET /config`.
+ * The top bar's rotating messages. `GET /admin/announcements` has every one (scheduled and ended too, unlike
+ * `GET /config`); writing replaces the whole ordered list (`PUT`, at most 10) — a message left out is deleted.
  */
 export const AnnouncementsEndpoints = {
-	getCurrent: async () => {
-		const res = await httpClient.call<{ announcements?: Announcement[] }>({ method: "GET", url: "config" });
-		return res.data.announcements ?? [];
+	getAll: async () => {
+		const res = await httpClient.call<Announcement[]>({ method: "GET", url: "admin/announcements" });
+		return res.data;
 	},
 
-	replaceAll: async (list: Announcement[]) => {
+	replaceAll: async (list: AnnouncementInput[]) => {
 		const res = await httpClient.call<Announcement[]>({ method: "PUT", url: "admin/announcements", data: list });
 		return res.data;
 	},

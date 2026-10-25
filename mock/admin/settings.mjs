@@ -68,11 +68,11 @@ route("PUT", "/admin/settings", (ctx) => {
 		.need((b.paymentGateways || []).filter((g) => g.isDefault).length === 1, "paymentGateways", "دقیقاً یک درگاه پیش‌فرض لازم است.")
 		.need((b.paymentGateways || []).some((g) => g.isDefault && g.available), "paymentGateways", "درگاه پیش‌فرض باید فعال باشد.");
 	(b.shippingMethods || []).forEach((m, i) => {
-		c.need(String(m.name ?? "").trim(), `shippingMethods[${i}].name`, "نام روش ارسال لازم است.");
-		c.need(nonNeg(m.baseCost), `shippingMethods[${i}].baseCost`, "هزینه عدد صحیح نامنفی.");
-		c.need(Number.isInteger(m.minDays) && Number.isInteger(m.maxDays) && m.minDays <= m.maxDays, `shippingMethods[${i}].maxDays`, "حداکثر روز باید بیشتر یا برابر حداقل باشد.");
+		c.need(String(m.name ?? "").trim(), `shippingMethods.${i}.name`, "نام روش ارسال لازم است.");
+		c.need(nonNeg(m.baseCost), `shippingMethods.${i}.baseCost`, "هزینه عدد صحیح نامنفی.");
+		c.need(Number.isInteger(m.minDays) && Number.isInteger(m.maxDays) && m.minDays <= m.maxDays, `shippingMethods.${i}.maxDays`, "حداکثر روز باید بیشتر یا برابر حداقل باشد.");
 	});
-	(b.supportHours || []).forEach((h, i) => c.need(h.messengerOnly || (HHMM.test(h.from || "") && HHMM.test(h.to || "")), `supportHours[${i}].from`, "ساعت مثل 09:00."));
+	(b.supportHours || []).forEach((h, i) => c.need(h.messengerOnly || (HHMM.test(h.from || "") && HHMM.test(h.to || "")), `supportHours.${i}.from`, "ساعت مثل 09:00."));
 	c.done();
 	settings = { ...settings, ...b };
 	return settings;

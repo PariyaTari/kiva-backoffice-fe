@@ -26,7 +26,7 @@ export default function OrderItems({ items, flaggedItemId }: OrderItemsProps) {
 					<div key={it.id} className={classNames("it-row", { flag: it.id === flaggedItemId })}>
 						<span className="th">
 							{/* eslint-disable-next-line @next/next/no-img-element -- API image URL */}
-							{it.image ? <img src={it.image.thumbnailUrl || it.image.url} alt={it.image.alt ?? it.name} /> : null}
+							{it.image ? <img src={it.image} alt={it.name} /> : null}
 						</span>
 						<span className="nm">
 							<b>

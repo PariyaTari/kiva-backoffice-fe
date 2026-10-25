@@ -1,5 +1,5 @@
-/** Catalogue as the panel edits it (kiva-openapi.yml 1.4.0 · Catalog, Admin · Catalog). */
-import { ColorKey, HtmlString, MediaAsset, MediaView, Money, SeoMeta } from "./common.type";
+/** Catalogue as the panel edits it (kiva-openapi.yml 1.12.0 · Catalog, Admin · Catalog). */
+import { ColorKey, HtmlString, MediaAsset, MediaView, Money, SeoInput, SeoMeta } from "./common.type";
 import { Color } from "./order.type";
 import { PageMeta } from "./pageinate";
 
@@ -52,8 +52,20 @@ export type ProductSpecs = {
 	weightGrams?: number | null;
 	closure?: { type: ClosureType; label?: string } | null;
 	straps?: StrapInfo[] | null;
-	pockets?: { internal?: number; internalZip?: number; external?: number; phone?: number; cardSlots?: number; summary?: string } | null;
+	pockets?: {
+		internal?: number;
+		internalZip?: number;
+		external?: number;
+		phone?: number;
+		cardSlots?: number;
+		billSlots?: number;
+		coinPocket?: boolean;
+		detachablePouch?: boolean;
+		laptopSleeve?: boolean;
+		summary?: string;
+	} | null;
 	laptopMaxInch?: number | null;
+	capacityLiters?: number | null;
 	waterproof?: boolean;
 	occasions?: { code: Occasion; label?: string }[];
 	lining?: { material?: string; color?: string } | null;
@@ -117,13 +129,16 @@ export type AdminProduct = {
 	adminVariants: AdminVariant[];
 	newUntil: string | null;
 	sortPriority: number;
-	viewsCount: number;
-	conversionRate: number;
+	/** `null` until view statistics exist. */
+	viewsCount: number | null;
+	conversionRate: number | null;
 	createdAt: string;
+	/** The creator's display name (full name, else the masked mobile; «سیستم» for system work). */
 	createdBy: string;
+	/** `W/"{version}"` — the same as the `ETag` header; goes back as `If-Match`. */
 	etag: string;
-	/** Scheduled publication (`PATCH …/status` with `publishAt`) — the mock echoes it. */
-	publishAt?: string | null;
+	/** 1.12.0 — a draft's scheduled publication (`PATCH …/status` with `publishAt`); `null` when none. */
+	publishAt: string | null;
 };
 
 export type AdminProductListItem = {
@@ -185,13 +200,15 @@ export type ProductUpsertRequest = {
 	specs?: ProductSpecs;
 	tags?: string[];
 	newUntil?: string | null;
+	/** 1 to 20 — the product's cap across all its colours in one cart / order. */
 	maxPerOrder?: number;
 	returnable?: boolean;
 	reservable?: boolean;
 	sortPriority?: number;
+	/** Only when creating (default `DRAFT`); ignored by `PUT`. */
 	status?: ProductStatus;
-	seo?: SeoMeta;
-	/** Only when creating. */
+	seo?: SeoInput;
+	/** Only when creating; ignored by `PUT`. */
 	variants?: VariantUpsertRequest[];
 };
 
@@ -211,13 +228,33 @@ export type CategoryUpsertRequest = {
 	name: string;
 	slug: string;
 	description?: string | null;
-	iconBagType?: BagType;
-	iconColorKey?: ColorKey;
+	/** 1.12.0 — required, like the icon colour. */
+	iconBagType: BagType;
+	iconColorKey: ColorKey;
 	imageMediaId?: string | null;
 	sortOrder?: number;
 	showInMenu?: boolean;
-	seo?: SeoMeta;
+	seo?: SeoInput;
 };
 
 export type ColorUpsertRequest = { key: ColorKey; name: string; hex: string; isLight?: boolean; sortOrder?: number };
 export type MaterialUpsertRequest = { name: string; slug: string; family: MaterialFamily; description?: string | null; careInstructions?: string[] };
+
+/**
+ * `GET /admin/stock-alerts` — the active «موجود شد خبرم کن» subscriptions of one colour (or of the whole product when
+ * the shopper wanted any colour), with the exact sellable stock now.
+ */
+export type AdminStockAlertGroup = {
+	product: { id: number; slug: string; name: string; imageUrl?: string | null };
+	/** `null` = any colour of this product. */
+	variantId: number | null;
+	color: Color | null;
+	sku: string | null;
+	waitingCount: number;
+	oldestAt: string;
+	stockStatus: StockStatus;
+	/** For `variantId = null`, the sum of every colour. */
+	availableQuantity: number;
+};
+
+export type StockAlertFilters = { productId?: number; inStock?: boolean };

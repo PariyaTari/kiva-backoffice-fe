@@ -16,15 +16,16 @@ import { formatPhone } from "@/utils/format";
 import { MESSENGER, optionsOf } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 import { OrdersEndpoints } from "../../_api/ordersEndpoints";
-import { isStaleOrderError } from "../../_utils/apiError";
+import { isPhotosIncompleteError, isStaleOrderError } from "../../_utils/apiError";
+import { linesWithoutPhoto } from "../../_utils/packing";
 
 const DEFAULT_MESSAGE = "این کیف خودته؛ همین الان برات کنار گذاشتیمش.";
 
 type SendMediaModalProps = { order: AdminOrder; open: boolean; onClose: () => void };
 
 /**
- * Step 4 of FEATURES §3.2: the photos go to the shopper's messenger (the bot), or the operator sent them by hand and
- * records it (`manual`) → `PHOTO_SENT` + SMS «عکس کیفت فرستاده شد».
+ * Step 4 of FEATURES §3.2 (1.12.0: always by hand — there is no messenger bot): the operator sends the draft photos
+ * in the shopper's messenger, then records it here → `PHOTO_SENT`, reply deadline +24h, SMS «عکس کیفت فرستاده شد».
  */
 export default function SendMediaModal({ order, open, onClose }: SendMediaModalProps) {
 	return (
@@ -37,18 +38,22 @@ export default function SendMediaModal({ order, open, onClose }: SendMediaModalP
 function SendMediaForm({ order, onClose }: Omit<SendMediaModalProps, "open">) {
 	const queryClient = useQueryClient();
 	const m = order.preShipmentMediaDetail;
-	const [manual, setManual] = useState(false);
+	const draft = order.draftItems ?? [];
 	const [channel, setChannel] = useState<PhotoMessengerChannel>(m.channel);
 	const [message, setMessage] = useState(DEFAULT_MESSAGE);
+	const missing = linesWithoutPhoto(
+		order,
+		draft.map((d) => d.orderItemId),
+	);
 
 	const send = useMutation({
 		mutationFn: () =>
 			withMappedError(() =>
-				OrdersEndpoints.sendPreShipmentMedia(order.code, { manual, channelOverride: channel !== m.channel ? channel : undefined, message: message.trim() || undefined }),
+				OrdersEndpoints.sendPreShipmentMedia(order.code, { manual: true, channelOverride: channel !== m.channel ? channel : undefined, message: message.trim() || undefined }),
 			),
 		meta: { showNotification: true },
 		onSuccess: () => {
-			toast(manual ? "ارسال دستی ثبت شد" : `عکس‌ها در ${MESSENGER[channel]} برای مشتری رفت`, { icon: "send" });
+			toast(`ارسال عکس‌ها در ${MESSENGER[channel]} ثبت شد و پیامک رفت`, { icon: "send" });
 			queryClient.invalidateQueries({ queryKey: ["orders"] });
 			onClose();
 		},
@@ -61,35 +66,23 @@ function SendMediaForm({ order, onClose }: Omit<SendMediaModalProps, "open">) {
 	});
 
 	const errors = fieldErrorsOf(send.error);
+	const incomplete = missing.length > 0 || isPhotosIncompleteError(send.error);
 
 	return (
 		<>
-			<ModalHead icon="send" title="ارسال عکس برای مشتری" subtitle={`${order.code} — ${toPersianDigits(m.items.length)} فایل`} />
+			<ModalHead icon="send" title="ثبت ارسال عکس برای مشتری" subtitle={`${order.code} — ${toPersianDigits(draft.length)} فایل`} />
 			<div className="m-body">
-				<div className="radios" role="radiogroup" aria-label="روش ارسال">
-					<label className="opt-card">
-						<input type="radio" name="how" checked={!manual} onChange={() => setManual(false)} />
-						<span className="radio" />
-						<span>
-							<span className="t">ارسال خودکار</span>
-							<span className="d" style={{ display: "block" }}>
-								ربات کیوا می‌فرستد
-							</span>
-						</span>
-					</label>
-					<label className="opt-card">
-						<input type="radio" name="how" checked={manual} onChange={() => setManual(true)} />
-						<span className="radio" />
-						<span>
-							<span className="t">دستی فرستادم</span>
-							<span className="d" style={{ display: "block" }}>
-								فقط ثبت و پیامک
-							</span>
-						</span>
-					</label>
-				</div>
+				<p className="note cream">
+					عکس‌ها را خودت در پیام‌رسان مشتری بفرست، بعد این‌جا ثبت کن. با ثبت، مشتری عکس‌ها را در صفحه‌ی سفارشش می‌بیند و ۲۴ ساعت برای پاسخ وقت دارد.
+				</p>
+				{incomplete && (
+					<p className="note danger">
+						سفارش چندقلمی برای هر کیف دست‌کم یک عکس لازم دارد
+						{missing.length > 0 && <>؛ بی‌عکس: {missing.map((i) => `${i.name} (${i.color.name})`).join("، ")}</>}. اول عکس‌ها را کامل کن.
+					</p>
+				)}
 				<div className="field">
-					<label>پیام‌رسان</label>
+					<label>پیام‌رسانی که با آن فرستادی</label>
 					<div className="radios">
 						{optionsOf(MESSENGER).map((o) => (
 							<label key={o.value} className="opt-card">
@@ -101,16 +94,30 @@ function SendMediaForm({ order, onClose }: Omit<SendMediaModalProps, "open">) {
 					</div>
 					<span className="help">
 						انتخاب مشتری: {m.channelName} · <span className="ltr">{formatPhone(m.phone)}</span>
+						{m.username && (
+							<>
+								{" "}
+								· <span className="ltr">{m.username}</span>
+							</>
+						)}
 					</span>
 				</div>
-				<Textarea label="پیام همراه" labelNote="اختیاری" maxLength={500} value={message} onChange={(e) => setMessage(e.target.value)} error={errors.message} style={{ minHeight: 70 }} />
+				<Textarea
+					label="پیامی که همراه عکس‌ها فرستادی"
+					labelNote="اختیاری، فقط ثبت می‌شود"
+					maxLength={500}
+					value={message}
+					onChange={(e) => setMessage(e.target.value)}
+					error={errors.message}
+					style={{ minHeight: 70 }}
+				/>
 			</div>
 			<div className="m-foot">
 				<Button variant="white" onClick={onClose} disabled={send.isPending}>
 					انصراف
 				</Button>
-				<Button onClick={() => send.mutate()} isLoading={send.isPending}>
-					{manual ? "ثبت ارسال دستی" : "ارسال برای مشتری"}
+				<Button onClick={() => send.mutate()} isLoading={send.isPending} disabled={!draft.length || missing.length > 0}>
+					فرستادم — ثبت ارسال
 				</Button>
 			</div>
 		</>

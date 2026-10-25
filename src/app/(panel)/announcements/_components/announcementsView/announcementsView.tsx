@@ -10,49 +10,72 @@ import IconSelect from "@/app/_components/panel/iconSelect/iconSelect";
 import JalaliDateTimeInput from "@/app/_components/panel/jalaliDateTimeInput/jalaliDateTimeInput";
 import PageHead from "@/app/_components/panel/pageHead/pageHead";
 import UnsavedGuard from "@/app/_components/panel/unsavedGuard/unsavedGuard";
+import Badge from "@/app/_components/ui/badge/badge";
 import Button from "@/app/_components/ui/button/button";
 import Input from "@/app/_components/ui/input/input";
 import { toast } from "@/store/notification.store";
-import { Announcement } from "@/types/marketing.type";
+import { Announcement, AnnouncementInput } from "@/types/marketing.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
+import { PERIOD_LABEL, PERIOD_TONE, periodState } from "@/utils/period";
 import { withMappedError } from "@/utils/withMappedError";
 import { AnnouncementsEndpoints } from "../../_api/announcementsEndpoints";
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-const blank = (): Announcement => ({ icon: "info", text: "", url: null, sortOrder: 0, startsAt: null, endsAt: null });
+/** `PUT /admin/announcements` takes at most this many messages (`TOO_MANY_ITEMS`). */
+const MAX_MESSAGES = 10;
 
-/** `/announcements` — the storefront's rotating top bar: edit, reorder, add, remove, then save the whole list. */
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const blank = (): AnnouncementInput => ({ id: null, icon: "info", text: "", url: null, startsAt: null, endsAt: null });
+/** What the form edits of a saved message — its place is the array order, so `sortOrder` is not kept. */
+const toInput = (a: Announcement): AnnouncementInput => ({ id: a.id, icon: a.icon, text: a.text, url: a.url, startsAt: a.startsAt, endsAt: a.endsAt });
+
+/** A message's own problems, said before saving (the server repeats them with the path `{index}.{field}`). */
+function rowProblems(a: AnnouncementInput): Record<string, string> {
+	const e: Record<string, string> = {};
+	if (!a.text.trim()) e.text = "متن لازم است.";
+	if (a.url && (a.url.length > 300 || !(/^https:\/\//.test(a.url) || /^\/(?![/\\])/.test(a.url)))) e.url = "آدرس کامل https:// یا مسیری که با / شروع می‌شود (مثل /faq#reserve).";
+	if (a.startsAt && a.endsAt && Date.parse(a.endsAt) <= Date.parse(a.startsAt)) e.endsAt = "پایان باید بعد از شروع باشد.";
+	return e;
+}
+
+/**
+ * `/announcements` — the storefront's rotating top bar: every message (running, scheduled and ended, from
+ * `GET /admin/announcements`), edit, reorder, add, remove, then save the whole list.
+ */
 export default function AnnouncementsView() {
 	const queryClient = useQueryClient();
-	const current = useQuery({
-		queryKey: ["announcements", "current"],
-		queryFn: () => withMappedError(() => AnnouncementsEndpoints.getCurrent()),
+	const all = useQuery({
+		queryKey: ["announcements", "list"],
+		queryFn: () => withMappedError(() => AnnouncementsEndpoints.getAll()),
+		select: (list) => list.map(toInput),
 		meta: { showNotificationOnRefetch: true },
 	});
 
-	const [base, setBase] = useState<Announcement[] | null>(null);
-	const [list, setList] = useState<Announcement[]>([]);
+	const [base, setBase] = useState<AnnouncementInput[] | null>(null);
+	const [list, setList] = useState<AnnouncementInput[]>([]);
+	const [touched, setTouched] = useState(false);
 	const dirty = base !== null && !same(list, base);
 	// the list arrived (or was read again) and nothing is being edited — show it
-	if (current.data && !dirty && !same(current.data, base)) {
-		setBase(current.data);
-		setList(current.data);
+	if (all.data && !dirty && !same(all.data, base)) {
+		setBase(all.data);
+		setList(all.data);
 	}
 
 	const save = useMutation({
-		mutationFn: () => withMappedError(() => AnnouncementsEndpoints.replaceAll(list.map((a, i) => ({ ...a, text: a.text.trim(), sortOrder: i + 1 })))),
+		mutationFn: () => withMappedError(() => AnnouncementsEndpoints.replaceAll(list.map((a) => ({ ...a, text: a.text.trim(), url: a.url?.trim() || null })))),
 		meta: { showNotification: true },
 		onSuccess: (saved) => {
 			toast("نوار اطلاعیه ذخیره شد", { icon: "check" });
-			setBase(saved);
-			setList(saved);
+			const next = saved.map(toInput);
+			setBase(next);
+			setList(next);
+			setTouched(false);
 			queryClient.invalidateQueries({ queryKey: ["announcements"] });
 		},
 	});
 
-	const patch = (i: number, change: Partial<Announcement>) => setList((l) => l.map((a, k) => (k === i ? { ...a, ...change } : a)));
+	const patch = (i: number, change: Partial<AnnouncementInput>) => setList((l) => l.map((a, k) => (k === i ? { ...a, ...change } : a)));
 	const move = (i: number, by: number) =>
 		setList((l) => {
 			const next = [...l];
@@ -60,61 +83,73 @@ export default function AnnouncementsView() {
 			next.splice(i + by, 0, row);
 			return next;
 		});
-	const errors = fieldErrorsOf(save.error);
-	const emptyText = list.some((a) => !a.text.trim());
-	const currentError = toErrorView(ERROR_BEHAVIOUR, current.error, "دریافت نوار اطلاعیه با خطا مواجه شد.");
+	const server = fieldErrorsOf(save.error);
+	const local = list.map(rowProblems);
+	const invalid = local.some((e) => Object.keys(e).length > 0);
+	const err = (i: number, field: string) => (touched && local[i][field]) || server[`${i}.${field}`] || server[`announcements.${i}.${field}`] || null;
+	const allError = toErrorView(ERROR_BEHAVIOUR, all.error, "دریافت نوار اطلاعیه با خطا مواجه شد.");
 
 	return (
 		<>
-			<PageHead title="نوار اطلاعیه" subtitle="پیام‌های چرخان بالای سایت، به همین ترتیب. ذخیره کل لیست را جایگزین می‌کند." />
-			<p className="note cream" style={{ marginBottom: 8 }}>
+			<PageHead title="نوار اطلاعیه" subtitle={`پیام‌های چرخان بالای سایت، به همین ترتیب؛ حداکثر ${toPersianDigits(MAX_MESSAGES)} پیام. ذخیره کل لیست را جایگزین می‌کند و پیام حذف‌شده از بین می‌رود.`} />
+			<p className="note cream" style={{ marginBottom: 14 }}>
 				فروشگاه فعلاً نوار اطلاعیه را از تنظیمات ثابت خودش می‌خواند (FEATURES §۶)؛ تغییرات تا وصل شدن فرانت به `GET /config` در سایت دیده نمی‌شود.
 			</p>
-			<p className="note danger" style={{ marginBottom: 14 }}>
-				این لیست از `GET /config` خوانده می‌شود که فقط پیام‌های «الان در حال نمایش» را دارد (خواندن ادمین در کانترکت نیست)؛ پیامی که زمانش نرسیده یا تمام شده این‌جا نیست و
-				با ذخیره پاک می‌شود.
-			</p>
 
-			{current.isLoading ? (
+			{all.isLoading ? (
 				<Loading />
-			) : !!currentError ? (
-				<ErrorComponent retryable={currentError.retryable} ticketAble={currentError.ticketAble} errorText={currentError.errorText} executeFunction={() => current.refetch()} loading={current.isFetching} />
+			) : !!allError ? (
+				<ErrorComponent retryable={allError.retryable} ticketAble={allError.ticketAble} errorText={allError.errorText} executeFunction={() => all.refetch()} loading={all.isFetching} />
 			) : (
 				<>
 					<div className="rows">
-						{list.map((a, i) => (
-							<div key={i} className="row-card">
-								<div className="rh">
-									<span className="tag">{toPersianDigits(i + 1)}</span>
-									<b>{a.text || "پیام جدید"}</b>
-									<span className="acts">
-										<button type="button" className="icon-btn" aria-label="بالاتر" disabled={!i} onClick={() => move(i, -1)}>
-											<Icon name="up" />
-										</button>
-										<button type="button" className="icon-btn" aria-label="پایین‌تر" disabled={i === list.length - 1} onClick={() => move(i, 1)}>
-											<Icon name="down" />
-										</button>
-										<button type="button" className="icon-btn del" aria-label="حذف" onClick={() => setList((l) => l.filter((_, k) => k !== i))}>
-											<Icon name="trash" />
-										</button>
-									</span>
-								</div>
-								<div className="form-grid">
-									<Input label="متن" maxLength={200} value={a.text} onChange={(e) => patch(i, { text: e.target.value })} error={(!a.text.trim() && save.isError && "متن لازم است.") || errors[`[${i}].text`]} wrapperClassName="full" />
-									<Input label="لینک" labelNote="اختیاری" direction="ltr" value={a.url ?? ""} onChange={(e) => patch(i, { url: e.target.value || null })} placeholder="/faq#reserve" />
-									<div className="field">
-										<label>نمایش از / تا</label>
-										<div style={{ display: "grid", gap: 6 }}>
-											<JalaliDateTimeInput value={a.startsAt} onChange={(d) => patch(i, { startsAt: d })} ariaLabel="نمایش از" />
-											<JalaliDateTimeInput value={a.endsAt} onChange={(d) => patch(i, { endsAt: d })} defaultTime="23:59" ariaLabel="نمایش تا" />
+						{list.map((a, i) => {
+							const state = periodState(a.startsAt, a.endsAt);
+							return (
+								<div key={a.id ?? `new-${i}`} className="row-card">
+									<div className="rh">
+										<span className="tag">{toPersianDigits(i + 1)}</span>
+										<b>{a.text || "پیام جدید"}</b>
+										<Badge tone={PERIOD_TONE[state]}>{state === "always" ? "همیشه" : PERIOD_LABEL[state]}</Badge>
+										<span className="acts">
+											<button type="button" className="icon-btn" aria-label="بالاتر" disabled={!i} onClick={() => move(i, -1)}>
+												<Icon name="up" />
+											</button>
+											<button type="button" className="icon-btn" aria-label="پایین‌تر" disabled={i === list.length - 1} onClick={() => move(i, 1)}>
+												<Icon name="down" />
+											</button>
+											<button type="button" className="icon-btn del" aria-label="حذف" onClick={() => setList((l) => l.filter((_, k) => k !== i))}>
+												<Icon name="trash" />
+											</button>
+										</span>
+									</div>
+									<div className="form-grid">
+										<Input label="متن" maxLength={200} value={a.text} onChange={(e) => patch(i, { text: e.target.value })} error={err(i, "text")} wrapperClassName="full" />
+										<Input
+											label="لینک"
+											labelNote="اختیاری"
+											direction="ltr"
+											maxLength={300}
+											value={a.url ?? ""}
+											onChange={(e) => patch(i, { url: e.target.value || null })}
+											placeholder="/faq#reserve"
+											error={err(i, "url")}
+										/>
+										<div className={`field${err(i, "endsAt") ? " error" : ""}`}>
+											<label>نمایش از / تا</label>
+											<div style={{ display: "grid", gap: 6 }}>
+												<JalaliDateTimeInput value={a.startsAt ?? null} onChange={(d) => patch(i, { startsAt: d })} ariaLabel="نمایش از" />
+												<JalaliDateTimeInput value={a.endsAt ?? null} onChange={(d) => patch(i, { endsAt: d })} defaultTime="23:59" ariaLabel="نمایش تا" />
+											</div>
+											{err(i, "endsAt") && <span className="err">{err(i, "endsAt")}</span>}
 										</div>
 									</div>
+									<IconSelect value={a.icon ?? null} onChange={(icon) => patch(i, { icon })} />
 								</div>
-								<IconSelect value={a.icon} onChange={(icon) => patch(i, { icon: icon ?? "info" })} />
-							</div>
-						))}
-						<button type="button" className="add-row" onClick={() => setList((l) => [...l, blank()])}>
-							<Icon name="plus" /> افزودن پیام
+							);
+						})}
+						<button type="button" className="add-row" disabled={list.length >= MAX_MESSAGES} onClick={() => setList((l) => [...l, blank()])}>
+							<Icon name="plus" /> {list.length >= MAX_MESSAGES ? `حداکثر ${toPersianDigits(MAX_MESSAGES)} پیام` : "افزودن پیام"}
 						</button>
 					</div>
 					<UnsavedGuard dirty={dirty} />
@@ -125,7 +160,15 @@ export default function AnnouncementsView() {
 								برگرداندن
 							</Button>
 						)}
-						<Button size="sm" onClick={() => save.mutate()} isLoading={save.isPending} disabled={!dirty || emptyText}>
+						<Button
+							size="sm"
+							onClick={() => {
+								setTouched(true);
+								if (!invalid) save.mutate();
+							}}
+							isLoading={save.isPending}
+							disabled={!dirty}
+						>
 							ذخیره‌ی لیست
 						</Button>
 					</div>

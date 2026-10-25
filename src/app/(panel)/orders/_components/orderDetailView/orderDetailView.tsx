@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import AuditHistory from "@/app/(panel)/_components/auditHistory/auditHistory";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
 import Loading from "@/app/_components/common/loading/loading";
 import { Icon } from "@/app/_components/icon/icons";
@@ -13,11 +14,11 @@ import Button from "@/app/_components/ui/button/button";
 import { useCan } from "@/hooks/useCan";
 import { Refund } from "@/types/order.type";
 import { toErrorView } from "@/utils/apiError";
-import { formatDateTime, formatToman } from "@/utils/format";
+import { DELETED_ACCOUNT, formatDateTime, formatToman } from "@/utils/format";
 import { withMappedError } from "@/utils/withMappedError";
 import { OrdersEndpoints } from "../../_api/ordersEndpoints";
 import { ERROR_BEHAVIOUR, isOrderNotFoundError } from "../../_utils/apiError";
-import { isPackable } from "../../_utils/packing";
+import { isPackable, isPhotoAnswered } from "../../_utils/packing";
 import ChangeRequestModal from "../changeRequestModal/changeRequestModal";
 import MediaEditModal from "../mediaEditModal/mediaEditModal";
 import OrderItems from "../orderItems/orderItems";
@@ -36,8 +37,6 @@ import StatusModal from "../statusModal/statusModal";
 
 type ModalName = "status" | "shipment" | "refund" | "media" | "send" | "change" | null;
 
-/** The statuses from which the order can be handed to the carrier (`PUT …/shipment`). */
-const SHIPPABLE = ["PHOTO_SENT", "PROCESSING"];
 const UNPAID = ["PENDING_PAYMENT", "PAYMENT_FAILED", "EXPIRED"];
 const BACK = { href: "/orders", label: "سفارش‌ها" };
 
@@ -94,6 +93,14 @@ export default function OrderDetailView({ code }: { code: string }) {
 
 	const o = order.data;
 	const balanceDue = o.totals.balanceDue ?? 0;
+	// `PUT …/shipment` (1.12.0): only from `PHOTO_SENT`, after the shopper's answer or its deadline, nothing left to pay
+	const m = o.preShipmentMediaDetail;
+	const shipBlock =
+		balanceDue > 0
+			? `مشتری هنوز ${formatToman(balanceDue)} مابه‌التفاوت را نپرداخته`
+			: !isPhotoAnswered(o)
+				? `منتظر پاسخ مشتری به عکس${m.feedbackDeadline ? ` — تا ${formatDateTime(m.feedbackDeadline)}` : ""}`
+				: undefined;
 	const refundable = can("refunds") && !UNPAID.includes(o.status) && o.totals.payable - o.refunds.filter((r) => r.status !== "FAILED").reduce((n, r) => n + r.amount, 0) > 0;
 
 	return (
@@ -108,18 +115,17 @@ export default function OrderDetailView({ code }: { code: string }) {
 						</Badge>
 					</span>
 				}
-				subtitle={`${formatDateTime(o.placedAt)} · ${o.customer.fullName} · ${formatToman(o.totals.payable)}`}
+				subtitle={`${formatDateTime(o.placedAt)} · ${o.customer.phone ? o.customer.fullName || "بدون نام" : DELETED_ACCOUNT} · ${formatToman(o.totals.payable)}`}
 				actions={
 					<>
-						{SHIPPABLE.includes(o.status) && (
-							<Button
-								size="sm"
-								onClick={() => setModal("shipment")}
-								iconStart={<Icon name="truck" />}
-								disabled={balanceDue > 0}
-								title={balanceDue > 0 ? `مشتری هنوز ${formatToman(balanceDue)} مابه‌التفاوت را نپرداخته` : undefined}
-							>
+						{o.status === "PHOTO_SENT" && (
+							<Button size="sm" onClick={() => setModal("shipment")} iconStart={<Icon name="truck" />} disabled={!!shipBlock} title={shipBlock}>
 								ثبت ارسال
+							</Button>
+						)}
+						{o.status === "SHIPPED" && (
+							<Button size="sm" variant="white" onClick={() => setModal("shipment")} iconStart={<Icon name="edit" />}>
+								اصلاح ارسال
 							</Button>
 						)}
 						{!!o.allowedTransitions.length && (
@@ -159,6 +165,7 @@ export default function OrderDetailView({ code }: { code: string }) {
 						}
 					/>
 					<OrderNotes code={o.code} notes={o.notes} />
+					<AuditHistory entityType="ORDER" entityId={o.code} parentKey={["orders", "detail", code]} />
 				</div>
 			</div>
 

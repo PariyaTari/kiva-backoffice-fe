@@ -23,7 +23,7 @@ import { toast } from "@/store/notification.store";
 import { Color } from "@/types/order.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
-import { fieldErrorsOf } from "@/utils/fieldErrors";
+import { fieldErrorsWith } from "@/utils/fieldErrors";
 import { withMappedError } from "@/utils/withMappedError";
 import { ColorsEndpoints } from "../../_api/colorsEndpoints";
 
@@ -31,8 +31,9 @@ const KEY = /^[a-z][a-z0-9-]{1,30}$/;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 
 /**
- * `/colors` — the palette every colour variant picks from (swatches on cards, the colour filter). A colour no
- * product uses can be deleted (`DELETE /admin/colors/{key}`, 1.5.0); one in use answers `409 IN_USE`.
+ * `/colors` — the palette every colour variant picks from (swatches on cards, the colour filter). A colour nothing
+ * uses can be deleted (`DELETE /admin/colors/{key}`); one on a variant, a category icon or a testimonial answers
+ * `409 IN_USE` (`meta.productCount` / `categoryCount` / `testimonialCount`) — the toast says which.
  */
 export default function ColorsView() {
 	const queryClient = useQueryClient();
@@ -168,14 +169,15 @@ function ColorForm({ color, nextSortOrder, onClose }: { color: Color | null; nex
 	});
 
 	const local = { key: !KEY.test(key) ? "حروف کوچک لاتین، رقم و خط تیره (مثل lilac)." : null, name: !name.trim() ? "نام رنگ را بنویس." : null, hex: !HEX.test(hex) ? "مثل #C8B6E2" : null };
-	const server = fieldErrorsOf(save.error);
+	// a taken key is `409 DUPLICATE_CODE`; the key can't change once made (`COLOR_KEY_IMMUTABLE`)
+	const server = fieldErrorsWith(save.error, { DUPLICATE_CODE: "key" });
 
 	return (
 		<>
 			<ModalHead icon="palette" title={color ? `ویرایش «${color.name}»` : "رنگ جدید"} />
 			<div className="m-body">
 				<div className="form-grid">
-					<Input label="نام" value={name} onChange={(e) => setName(e.target.value)} error={(touched && local.name) || server.name} />
+					<Input label="نام" maxLength={50} value={name} onChange={(e) => setName(e.target.value)} error={(touched && local.name) || server.name} />
 					<Input label="کلید" labelNote="ثابت؛ در آدرس‌ها" direction="ltr" value={key} readOnly={!!color} onChange={(e) => setKey(e.target.value.toLowerCase())} error={(touched && local.key) || server.key} />
 					<div className="field">
 						<label>کد رنگ</label>

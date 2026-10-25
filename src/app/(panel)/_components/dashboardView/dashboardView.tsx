@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PANEL_ERRORS as ERROR_BEHAVIOUR } from "@/app/(panel)/_utils/apiError";
 import { ContactEndpoints } from "@/app/(panel)/contact-messages/_api/contactEndpoints";
 import { OrdersEndpoints } from "@/app/(panel)/orders/_api/ordersEndpoints";
+import { ProductsEndpoints } from "@/app/(panel)/products/_api/productsEndpoints";
 import { ReturnsEndpoints } from "@/app/(panel)/returns/_api/returnsEndpoints";
 import { ReviewsEndpoints } from "@/app/(panel)/reviews/_api/reviewsEndpoints";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
@@ -47,7 +48,7 @@ function QueueCards() {
 	});
 	const returns = useQuery({
 		queryKey: ["returns", "queueCount"],
-		queryFn: () => withMappedError(() => ReturnsEndpoints.getReturns("REQUESTED", 1, 1)),
+		queryFn: () => withMappedError(() => ReturnsEndpoints.getReturns("REQUESTED", "newest", 1, 1)),
 		enabled: can("returns"),
 		select: (d) => d.meta.totalItems,
 	});
@@ -63,13 +64,29 @@ function QueueCards() {
 		enabled: can("support"),
 		select: (d) => d.meta.totalItems,
 	});
+	// the manual refund queue (ADMIN): orders with a refund still to transfer
+	const refunds = useQuery({
+		queryKey: ["orders", "queueCount", "pendingRefunds"],
+		queryFn: () => withMappedError(() => OrdersEndpoints.getOrders({ status: [], refundStatus: "PENDING" }, 1, 1)),
+		enabled: can("refunds"),
+		select: (d) => d.meta.totalItems,
+	});
+	// colours shoppers wait for that are still out of stock
+	const stockAlerts = useQuery({
+		queryKey: ["stockAlerts", "queueCount"],
+		queryFn: () => withMappedError(() => ProductsEndpoints.getStockAlerts({ inStock: false }, 1, 1)),
+		enabled: can("catalog"),
+		select: (d) => d.meta.totalItems,
+	});
 
 	const cards = [
 		can("orders") && { href: "/orders?tab=awaiting", icon: "camera", label: "باید عکاسی شود", count: awaiting.data },
 		can("returns") && { href: "/returns", icon: "swap", label: "مرجوعی منتظر تصمیم", count: returns.data },
+		can("refunds") && { href: "/orders?refund=PENDING", icon: "wallet", label: "استرداد منتظر انتقال", count: refunds.data },
 		can("support") && { href: "/reviews", icon: "star", label: "نظر منتظر تأیید", count: reviews.data },
 		can("support") && { href: "/contact-messages", icon: "chat", label: "پیام تماس باز", count: tickets.data },
 		can("catalog") && { href: "/products?stock=LOW_STOCK&sort=stock_asc", icon: "pkg", label: "محصولات کم‌موجود", count: undefined },
+		can("catalog") && { href: "/stock-alerts", icon: "bell", label: "رنگ ناموجود با منتظر", count: stockAlerts.data },
 		can("content") && { href: "/blog/new", icon: "feather", label: "نوشتن مقاله‌ی تازه", count: undefined },
 	].filter(Boolean) as { href: string; icon: string; label: string; count?: number }[];
 

@@ -15,8 +15,8 @@ import Switch from "@/app/_components/ui/switch/switch";
 import Textarea from "@/app/_components/ui/textarea/textarea";
 import { toast } from "@/store/notification.store";
 import { AdminCategory, BagType, CategoryUpsertRequest } from "@/types/catalog.type";
-import { SeoMeta } from "@/types/common.type";
-import { fieldErrorsOf } from "@/utils/fieldErrors";
+import { SeoMeta, toSeoInput } from "@/types/common.type";
+import { fieldErrorsWith } from "@/utils/fieldErrors";
 import { BAG_TYPE, optionsOf } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 import { CategoriesEndpoints } from "../../_api/categoriesEndpoints";
@@ -24,7 +24,10 @@ import { CategoriesEndpoints } from "../../_api/categoriesEndpoints";
 const SLUG = /^(?=.*[a-z])[a-z0-9]+(-[a-z0-9]+)*$/;
 type CategoryModalProps = { category: AdminCategory | null; open: boolean; onClose: () => void; nextSortOrder: number };
 
-/** `CategoryUpsertRequest` — name, slug, menu icon (bag type + colour), image, order, menu visibility, SEO. */
+/**
+ * `CategoryUpsertRequest` — name, slug, menu icon (bag type + colour, both required), image (`purpose=CATEGORY`,
+ * photos only), order, menu visibility, SEO (title / description / noindex). A new slug breaks the old links.
+ */
 export default function CategoryModal({ category, open, onClose, nextSortOrder }: CategoryModalProps) {
 	return (
 		<Modal open={open} onClose={onClose} width={680}>
@@ -61,7 +64,7 @@ function CategoryForm({ category, onClose, nextSortOrder }: Omit<CategoryModalPr
 		imageMediaId: image?.id ?? null,
 		sortOrder: sortOrder ?? 0,
 		showInMenu,
-		seo,
+		seo: toSeoInput(seo),
 	});
 
 	const save = useMutation({
@@ -74,11 +77,16 @@ function CategoryForm({ category, onClose, nextSortOrder }: Omit<CategoryModalPr
 		},
 	});
 
-	const local = { name: !name.trim() ? "نام دسته را بنویس." : null, slug: !SLUG.test(slug) ? "فقط حروف کوچک لاتین، رقم و خط تیره (مثل shoulder)." : null };
-	const server = fieldErrorsOf(save.error);
+	const local = {
+		name: !name.trim() ? "نام دسته را بنویس." : name.length > 100 ? "حداکثر ۱۰۰ حرف." : null,
+		slug: !SLUG.test(slug) || slug.length > 100 ? "فقط حروف کوچک لاتین، رقم و خط تیره (مثل shoulder)." : null,
+		iconColorKey: !colorKey ? "رنگ آیکن را انتخاب کن." : null,
+		description: description.length > 500 ? "حداکثر ۵۰۰ حرف." : null,
+	};
+	const server = fieldErrorsWith(save.error, { DUPLICATE_SLUG: "slug" });
 	const submit = () => {
 		setTouched(true);
-		if (!local.name && !local.slug) save.mutate();
+		if (!Object.values(local).some(Boolean)) save.mutate();
 	};
 
 	return (
@@ -86,28 +94,42 @@ function CategoryForm({ category, onClose, nextSortOrder }: Omit<CategoryModalPr
 			<ModalHead icon="layers" title={category ? `ویرایش «${category.name}»` : "دسته‌ی جدید"} subtitle="مگامنو، چیپ‌های فروشگاه و بخش دسته‌بندی صفحه‌ی اصلی" />
 			<div className="m-body">
 				<div className="form-grid">
-					<Input label="نام" value={name} onChange={(e) => setName(e.target.value)} error={(touched && local.name) || server.name} />
+					<Input label="نام" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} error={(touched && local.name) || server.name} />
 					<Input
 						label="slug"
 						direction="ltr"
 						value={slug}
 						onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
 						error={(touched && local.slug) || server.slug}
-						hint={slug ? `/products?category=${slug}` : undefined}
+						hint={slug ? `/products?category=${slug}${category && slug !== category.slug ? " — لینک‌های قبلی دیگر کار نمی‌کنند" : ""}` : undefined}
 					/>
 					<Select label="آیکن: نوع کیف" value={bagType} onChange={(e) => setBagType(e.target.value as BagType)} options={optionsOf(BAG_TYPE)} error={server.iconBagType} />
-					<Select label="آیکن: رنگ" value={colorKey} onChange={(e) => setColorKey(e.target.value)} options={(colors.data ?? []).map((c) => ({ value: c.key, label: c.name }))} error={server.iconColorKey} />
+					<Select
+						label="آیکن: رنگ"
+						value={colorKey}
+						onChange={(e) => setColorKey(e.target.value)}
+						options={(colors.data ?? []).map((c) => ({ value: c.key, label: c.name }))}
+						error={(touched && local.iconColorKey) || server.iconColorKey}
+					/>
 					<NumberInput label="ترتیب" value={sortOrder} onChange={setSortOrder} />
 					<div className="field" style={{ justifyContent: "flex-end" }}>
 						<Switch label="در منو نمایش داده شود" checked={showInMenu} onChange={(e) => setShowInMenu(e.target.checked)} />
 					</div>
 				</div>
-				<Textarea label="توضیح" labelNote="اختیاری" value={description} onChange={(e) => setDescription(e.target.value)} style={{ minHeight: 70 }} />
-				<SingleMediaField label="عکس دسته" labelNote="اختیاری؛ بدون عکس، آیکن کیف نمایش داده می‌شود" purpose="CATEGORY" value={image} onChange={setImage} error={server.imageMediaId} />
+				<Textarea
+					label="توضیح"
+					labelNote="اختیاری"
+					maxLength={500}
+					value={description}
+					onChange={(e) => setDescription(e.target.value)}
+					error={(touched && local.description) || server.description}
+					style={{ minHeight: 70 }}
+				/>
+				<SingleMediaField label="عکس دسته" labelNote="اختیاری، فقط عکس؛ بدون عکس، آیکن کیف نمایش داده می‌شود" purpose="CATEGORY" value={image} onChange={setImage} error={server.imageMediaId} />
 				<details>
 					<summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 14 }}>SEO</summary>
 					<div style={{ marginTop: 12 }}>
-						<SeoFields value={seo} onChange={setSeo} errors={server} titlePlaceholder={name ? `${name} | کیوا` : undefined} />
+						<SeoFields serverBuilt value={seo} onChange={setSeo} errors={server} titlePlaceholder={name ? `${name} | کیوا` : undefined} />
 					</div>
 				</details>
 			</div>

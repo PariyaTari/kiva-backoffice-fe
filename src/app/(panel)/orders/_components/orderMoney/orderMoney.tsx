@@ -2,12 +2,15 @@ import { Icon } from "@/app/_components/icon/icons";
 import StatusTag from "@/app/_components/panel/statusTag/statusTag";
 import { AdminOrder, Refund } from "@/types/order.type";
 import { formatDateTime, formatPrice, formatToman } from "@/utils/format";
-import { PAYMENT_STATUS, PAYMENT_STATUS_TONE, REFUND_METHOD, REFUND_STATUS, REFUND_STATUS_TONE, labelOf } from "@/utils/labels";
+import { PAYMENT_PURPOSE, PAYMENT_STATUS, PAYMENT_STATUS_TONE, REFUND_METHOD, REFUND_STATUS, REFUND_STATUS_TONE, labelOf } from "@/utils/labels";
 import { isRefundOpen } from "../refundTrackModal/refundTrackModal";
 
 const FREE_REASON: Record<string, string> = { THRESHOLD: "خرید بالای سقف", RESERVATION_CONSOLIDATION: "پیوسته به رزرو" };
 
-/** The money of an order: totals (cart formula, FEATURES §3.8), every payment attempt and every refund. */
+/**
+ * The money of an order: totals (cart formula, FEATURES §3.8), every payment attempt (oldest first, the order's own and
+ * the balance after a change request) and every refund. Refunds are manual transfers a colleague makes.
+ */
 type OrderMoneyProps = {
 	order: AdminOrder;
 	/** «استرداد وجه» — ADMIN only. */
@@ -54,7 +57,7 @@ export default function OrderMoney({ order, onRefund, onTrackRefund }: OrderMone
 					<span>{t.shippingCost ? formatPrice(t.shippingCost) : `رایگان${t.shippingFreeReason ? ` — ${FREE_REASON[t.shippingFreeReason] ?? t.shippingFreeReason}` : ""}`}</span>
 				</div>
 				<div className="t">
-					<span>پرداختی</span>
+					<span>پرداختی تا الان</span>
 					<span>{formatToman(t.payable)}</span>
 				</div>
 				{!!t.refunded && (
@@ -81,7 +84,9 @@ export default function OrderMoney({ order, onRefund, onTrackRefund }: OrderMone
 						{order.payments.map((p, i) => (
 							<div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, flexWrap: "wrap" }}>
 								<StatusTag value={p.status} labels={PAYMENT_STATUS} tones={PAYMENT_STATUS_TONE} />
-								<b>{p.gatewayName}</b>
+								<b>{p.amount != null ? formatToman(p.amount) : p.gatewayName}</b>
+								{p.amount != null && <span className="muted">{p.gatewayName}</span>}
+								{p.purpose === "BALANCE" && <span className="muted">· {labelOf(PAYMENT_PURPOSE, p.purpose)}</span>}
 								{p.referenceId && <span className="muted ltr">پیگیری {p.referenceId}</span>}
 								{p.cardMask && <span className="muted ltr">{p.cardMask}</span>}
 								<span className="muted" style={{ marginInlineStart: "auto" }}>

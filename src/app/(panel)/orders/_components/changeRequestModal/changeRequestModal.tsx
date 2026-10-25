@@ -27,7 +27,7 @@ import DesiredVariant from "../desiredVariant/desiredVariant";
 const APPLY_EFFECT: Record<NonNullable<PreShipmentFeedback["changeType"]>, string> = {
 	COLOR: "قلم به رنگ تازه عوض می‌شود (با قیمت امروزش) و موجودی رزرو جابه‌جا می‌شود.",
 	MODEL: "قلم به مدل تازه عوض می‌شود (با قیمت امروزش) و موجودی رزرو جابه‌جا می‌شود.",
-	CANCEL_ITEM: "این قلم حذف و سهمش استرداد می‌شود؛ اگر تنها قلم سفارش باشد کل سفارش لغو می‌شود.",
+	CANCEL_ITEM: "این قلم حذف و سهم پرداخت‌شده‌اش (منهای سهم کد تخفیف، بدون هزینه‌ی ارسال) اول از مانده‌ی پرداخت کم و باقیش استرداد می‌شود؛ اگر تنها قلم سفارش باشد کل سفارش مثل لغو پنل لغو می‌شود.",
 	OTHER: "کار را دستی انجام داده‌ای؛ فقط سفارش به آماده‌سازی برمی‌گردد. بنویس چه کردی.",
 };
 
@@ -132,7 +132,7 @@ function ChangeRequestForm({ order, onClose }: Omit<ChangeRequestModalProps, "op
 					</button>
 				</div>
 				<p className={classNames("note", { danger: decision === "APPLY" && type === "CANCEL_ITEM" })}>
-					{decision === "APPLY" ? APPLY_EFFECT[type] : "همان کالای قبلی ارسال می‌شود؛ دلیل برای مشتری پیامک می‌شود."} بعد از ثبت، سفارش برای عکاسی دوباره به «در حال آماده‌سازی» برمی‌گردد.
+					{decision === "APPLY" ? APPLY_EFFECT[type] : "همان کالای قبلی ارسال می‌شود؛ دلیل در صفحه‌ی سفارش مشتری دیده می‌شود."} بعد از ثبت، سفارش برای عکاسی دوباره به «در حال آماده‌سازی» برمی‌گردد.
 				</p>
 
 				{decision === "APPLY" && type === "COLOR" && item && (
@@ -171,20 +171,22 @@ function ChangeRequestForm({ order, onClose }: Omit<ChangeRequestModalProps, "op
 							<p className={classNames("note", diff > 0 ? "cream" : "success")}>
 								{diff > 0
 									? `گران‌تر است: ${formatToman(diff)} روی سفارش «مانده‌ی پرداخت» می‌شود و تا مشتری نپردازد ارسال ممکن نیست.`
-									: `ارزان‌تر است: ${formatToman(-diff)} خودکار استرداد می‌شود.`}
+									: (order.totals.balanceDue ?? 0) > 0
+										? `ارزان‌تر است: ${formatToman(-diff)} اول از مانده‌ی پرداخت (${formatToman(order.totals.balanceDue ?? 0)}) کم و باقیش استرداد می‌شود.`
+										: `ارزان‌تر است: ${formatToman(-diff)} استرداد «در انتظار» ثبت می‌شود.`}
 							</p>
 						)}
 					</>
 				)}
 				{decision === "APPLY" && type === "MODEL" && (
 					<p className="muted" style={{ fontSize: 13 }}>
-						اگر مدل تازه گران‌تر باشد اختلاف «مانده‌ی پرداخت» مشتری می‌شود و اگر ارزان‌تر، خودکار استرداد.
+						اگر مدل تازه گران‌تر باشد اختلاف «مانده‌ی پرداخت» مشتری می‌شود و اگر ارزان‌تر، اول از مانده کم و باقیش استرداد می‌شود.
 					</p>
 				)}
 
 				<Textarea
 					label={decision === "REJECT" ? "دلیل رد (برای مشتری)" : "توضیح برای مشتری"}
-					labelNote={noteNeeded ? undefined : "اختیاری"}
+					labelNote={noteNeeded ? "در صفحه‌ی سفارش مشتری دیده می‌شود" : "اختیاری؛ در صفحه‌ی سفارش مشتری دیده می‌شود"}
 					maxLength={500}
 					value={note}
 					onChange={(e) => setNote(e.target.value)}
@@ -193,7 +195,7 @@ function ChangeRequestForm({ order, onClose }: Omit<ChangeRequestModalProps, "op
 					footer={<small className="muted">{toPersianDigits(note.length)} / ۵۰۰</small>}
 					style={{ minHeight: 80 }}
 				/>
-				<Switch label="پیامک نتیجه به مشتری" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+				<Switch label="پیامک «درخواستت بررسی شد» به مشتری (بدون متن توضیح)" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
 			</div>
 			<div className="m-foot">
 				<Button variant="white" onClick={onClose} disabled={resolve.isPending}>

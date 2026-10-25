@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import AuditHistory from "@/app/(panel)/_components/auditHistory/auditHistory";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
 import Loading from "@/app/_components/common/loading/loading";
 import { TableEmpty } from "@/app/_components/panel/dataTable/dataTable";
@@ -87,6 +88,7 @@ export default function ProductEditView({ id }: { id: number | null }) {
 				<ProductForm product={p} />
 				<aside>
 					<ProductStatusCard product={p} />
+					<AuditHistory entityType="PRODUCT" entityId={String(p.id)} parentKey={["products", "detail", id]} />
 				</aside>
 			</div>
 			<VariantsSection product={p} />

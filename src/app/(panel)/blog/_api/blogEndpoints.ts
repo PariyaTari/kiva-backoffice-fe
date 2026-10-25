@@ -1,19 +1,22 @@
 import { httpClient } from "@/httpClient/HttpClient";
-import { BlogCategory, BlogPostDetail, BlogPostList, BlogPostUpsertRequest } from "@/types/content.type";
+import { AdminBlogFilters, AdminBlogPost, AdminBlogPostList, BlogCategory, BlogPostUpsertRequest } from "@/types/content.type";
 
 /**
- * Blog. Writes are `/admin/blog/posts*` (ADMIN, CONTENT_EDITOR). The contract has no admin list, categories or
- * authors (FEATURES §7 #1–2): the list and categories come from the public blog, a post is read by id
- * (`GET /blog/posts/{id}` — drafts need the backend to answer staff, see docs/PLAN.md).
+ * Blog — `/admin/blog/posts*` (ADMIN, CONTENT_EDITOR): every post (drafts, scheduled, archived) as `AdminBlogPost`.
+ * The contract still has no admin categories or authors (FEATURES §7 #2): categories come from the public blog.
  */
 export const BlogEndpoints = {
-	getPosts: async (q: string, category: string, page: number, size: number) => {
-		const res = await httpClient.call<BlogPostList>({ method: "GET", url: "blog/posts", params: { q: q || undefined, category: category || undefined, page, size } });
+	getPosts: async (filters: AdminBlogFilters, page: number, size: number) => {
+		const res = await httpClient.call<AdminBlogPostList>({
+			method: "GET",
+			url: "admin/blog/posts",
+			params: { status: filters.status || undefined, q: filters.q || undefined, category: filters.category || undefined, page, size },
+		});
 		return res.data;
 	},
 
 	getPost: async (id: number) => {
-		const res = await httpClient.call<BlogPostDetail>({ method: "GET", url: `blog/posts/${id}` });
+		const res = await httpClient.call<AdminBlogPost>({ method: "GET", url: `admin/blog/posts/${id}` });
 		return res.data;
 	},
 
@@ -23,12 +26,12 @@ export const BlogEndpoints = {
 	},
 
 	create: async (payload: BlogPostUpsertRequest) => {
-		const res = await httpClient.call<BlogPostDetail>({ method: "POST", url: "admin/blog/posts", data: payload });
+		const res = await httpClient.call<AdminBlogPost>({ method: "POST", url: "admin/blog/posts", data: payload });
 		return res.data;
 	},
 
 	update: async (id: number, payload: BlogPostUpsertRequest) => {
-		const res = await httpClient.call<BlogPostDetail>({ method: "PUT", url: `admin/blog/posts/${id}`, data: payload });
+		const res = await httpClient.call<AdminBlogPost>({ method: "PUT", url: `admin/blog/posts/${id}`, data: payload });
 		return res.data;
 	},
 

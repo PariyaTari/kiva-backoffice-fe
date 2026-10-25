@@ -61,7 +61,7 @@ export default function PanelShell({ children }: { children: ReactNode }) {
 	});
 	const returnRequests = useQuery({
 		queryKey: ["returns", "queueCount"],
-		queryFn: () => withMappedError(() => ReturnsEndpoints.getReturns("REQUESTED", 1, 1)),
+		queryFn: () => withMappedError(() => ReturnsEndpoints.getReturns("REQUESTED", "newest", 1, 1)),
 		enabled: ready && canAccess(roles, "returns"),
 		select: (d) => d.meta.totalItems,
 		refetchInterval: LIVE_POLL_MS,

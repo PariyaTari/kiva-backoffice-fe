@@ -1,14 +1,17 @@
 import { httpClient } from "@/httpClient/HttpClient";
-import { FaqGroup } from "@/types/content.type";
+import { FaqGroup, FaqGroupInput } from "@/types/content.type";
 
-/** FAQ — the whole ordered list is saved at once (`PUT /admin/faq/groups`); it is read from the public `GET /faq` (FEATURES §7 #5). */
+/**
+ * FAQ — read as the form needs it (`GET /admin/faq/groups`, not cached unlike `GET /faq`), saved as one whole tree
+ * (`PUT /admin/faq/groups`): a group or question left out is deleted.
+ */
 export const FaqEndpoints = {
 	getGroups: async () => {
-		const res = await httpClient.call<{ groups: FaqGroup[] }>({ method: "GET", url: "faq" });
-		return res.data.groups;
+		const res = await httpClient.call<FaqGroup[]>({ method: "GET", url: "admin/faq/groups" });
+		return res.data;
 	},
 
-	replaceAll: async (groups: FaqGroup[]) => {
+	replaceAll: async (groups: FaqGroupInput[]) => {
 		const res = await httpClient.call<FaqGroup[]>({ method: "PUT", url: "admin/faq/groups", data: groups });
 		return res.data;
 	},

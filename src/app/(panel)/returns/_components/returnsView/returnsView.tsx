@@ -16,11 +16,11 @@ import Button from "@/app/_components/ui/button/button";
 import { useCan } from "@/hooks/useCan";
 import { useTableState } from "@/hooks/useTableState";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { AdminReturnRequest, ReturnStatus } from "@/types/order.type";
+import { AdminReturnRequest, AdminReturnSort, ReturnStatus } from "@/types/order.type";
 import { toErrorView } from "@/utils/apiError";
 import { toPersianDigits } from "@/utils/digits";
-import { formatDateTime, formatPhone, formatToman, relativeTime } from "@/utils/format";
-import { KIVA_FAULT_REASONS, labelOf, REFUND_METHOD, REFUND_STATUS, RETURN_REASON, RETURN_STATUS, RETURN_STATUS_TONE } from "@/utils/labels";
+import { DELETED_ACCOUNT, formatDateTime, formatPhone, formatToman, relativeTime } from "@/utils/format";
+import { KIVA_FAULT_REASONS, labelOf, optionsOf, ORDER_SORT, REFUND_METHOD, REFUND_STATUS, RETURN_REASON, RETURN_STATUS, RETURN_STATUS_TONE } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 import { ReturnsEndpoints } from "../../_api/returnsEndpoints";
 import { ERROR_BEHAVIOUR } from "../../_utils/apiError";
@@ -48,16 +48,17 @@ type Step = "decide" | "pickup" | "receipt" | "close";
  */
 export default function ReturnsView() {
 	const can = useCan();
-	const [f, setF] = useUrlFilters({ status: "REQUESTED" });
+	const [f, setF] = useUrlFilters({ status: "REQUESTED", sort: "newest" });
 	const status = f.status as ReturnStatus | "";
-	const { page, setPage, pageSize, setPageSize } = useTableState({ resetPageOn: [status] });
+	const sort: AdminReturnSort = f.sort === "oldest" ? "oldest" : "newest";
+	const { page, setPage, pageSize, setPageSize } = useTableState({ resetPageOn: [status, sort] });
 	const [open, setOpen] = useState<{ step: Step; item: AdminReturnRequest } | null>(null);
 	const itemFor = (step: Step) => (open?.step === step ? open.item : null);
 	const close = () => setOpen(null);
 
 	const list = useQuery({
-		queryKey: ["returns", "list", { status, page, pageSize }],
-		queryFn: () => withMappedError(() => ReturnsEndpoints.getReturns(status, page, pageSize)),
+		queryKey: ["returns", "list", { status, sort, page, pageSize }],
+		queryFn: () => withMappedError(() => ReturnsEndpoints.getReturns(status, sort, page, pageSize)),
 		placeholderData: keepPreviousData,
 		meta: { showNotificationOnRefetch: true },
 	});
@@ -74,7 +75,13 @@ export default function ReturnsView() {
 						{r.orderCode}
 					</Link>
 					<span className="sub">
-						{r.customer.fullName ?? "—"} · <span className="ltr">{formatPhone(r.customer.phone)}</span>
+						{r.customer.phone ? (
+							<>
+								{r.customer.fullName ?? "—"} · <span className="ltr">{formatPhone(r.customer.phone)}</span>
+							</>
+						) : (
+							DELETED_ACCOUNT
+						)}
 					</span>
 				</>
 			),
@@ -111,8 +118,9 @@ export default function ReturnsView() {
 			className: "nowrap",
 			render: (r) => (
 				<>
-					{r.refund ? `${formatToman(r.refund.amount)} · ${labelOf(REFUND_STATUS, r.refund.status)}` : labelOf(REFUND_METHOD, r.refundMethod ?? "ORIGINAL_PAYMENT")}
-					{r.iban && <span className="sub ltr">{r.iban}</span>}
+					{r.refund ? `${formatToman(r.refund.amount)} · ${labelOf(REFUND_STATUS, r.refund.status)}` : labelOf(REFUND_METHOD, r.refundMethod)}
+					{r.refund?.statusNote && <span className="sub">{r.refund.statusNote}</span>}
+					{!r.refund && r.suggestedRefund != null && <span className="sub">پیشنهاد استرداد {formatToman(r.suggestedRefund)}</span>}
 				</>
 			),
 		},
@@ -170,6 +178,7 @@ export default function ReturnsView() {
 							</Button>
 						)}
 						{next.includes("REFUNDED") && !can("refunds") && <span className="sub">منتظر استرداد (مدیر کل)</span>}
+						{r.status === "RECEIVED" && !next.length && <span className="sub">منتظر نتیجه‌ی استرداد</span>}
 						{next.includes("CLOSED") && (
 							<button type="button" className="btn btn-link btn-sm" style={{ color: "var(--danger)" }} onClick={() => setOpen({ step: "close", item: r })}>
 								بستن بدون استرداد
@@ -186,6 +195,17 @@ export default function ReturnsView() {
 	return (
 		<>
 			<PageHead title="مرجوعی‌ها" subtitle="درخواست‌های بازگشت تا ۷ روز بعد از تحویل: تصمیم، جمع‌آوری مرسوله، رسیدن به انبار، استرداد یا بستن." />
+
+			<div className="fbar">
+				<select className="select" aria-label="ترتیب" value={sort} onChange={(e) => setF({ sort: e.target.value as AdminReturnSort })}>
+					{optionsOf(ORDER_SORT).map((o) => (
+						<option key={o.value} value={o.value}>
+							{o.label}
+						</option>
+					))}
+				</select>
+				{sort === "oldest" && <span className="muted" style={{ fontSize: 12.5 }}>مرجوعی بستن خودکار ندارد؛ قدیمی‌ها اول، تا مرسوله‌های نرسیده دیده شوند.</span>}
+			</div>
 
 			<div className="tabs bo-tabs" role="tablist">
 				{TABS.map((t) => (

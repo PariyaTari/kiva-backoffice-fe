@@ -15,6 +15,7 @@ export function useRequireLogin(active = true) {
 	const signedIn = useAuthStore((s) => !!s.accessToken);
 
 	useEffect(() => {
-		if (active && hydrated && !signedIn) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+		// the query too (`/orders?tab=…`), read here so the panel's layout needs no `useSearchParams` Suspense boundary
+		if (active && hydrated && !signedIn) router.replace(`/login?next=${encodeURIComponent(pathname + window.location.search)}`);
 	}, [active, hydrated, signedIn, pathname, router]);
 }

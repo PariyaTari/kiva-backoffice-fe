@@ -4,7 +4,7 @@
  * Products carry a version: `ETag` on reads, `If-Match` on `PUT` (a stale one → 412). Only a `PUT` of the product
  * document moves it — status, colours and stock are their own resources.
  */
-import { DAY, HOUR, SLUG, checker, fail, iso, listParam, normQ, notFound, paginate, route, toEn } from "../lib.mjs";
+import { DAY, HOUR, SLUG, checker, fail, iso, listParam, normQ, notFound, paginate, route } from "../lib.mjs";
 import { staff } from "../auth.mjs";
 import { fullNameOf } from "../db.mjs";
 import { assets } from "../media.mjs";

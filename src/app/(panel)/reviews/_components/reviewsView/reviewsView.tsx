@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import classNames from "classnames";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { TaxonomyEndpoints } from "@/app/(panel)/_api/taxonomyEndpoints";
 import { PANEL_ERRORS as ERROR_BEHAVIOUR } from "@/app/(panel)/_utils/apiError";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
 import Loading from "@/app/_components/common/loading/loading";
@@ -67,16 +66,6 @@ export default function ReviewsView() {
 		placeholderData: keepPreviousData,
 		meta: { showNotificationOnRefetch: true },
 	});
-	// 1.21.0 — a review's `product` is only filled in the shopper's own list; the page's products are read by id
-	// (published ones only — the rest show their id). Same key as the product picker's chips.
-	const productIds = [...new Set((reviews.data?.items ?? []).map((r) => r.productId))].sort((a, b) => a - b);
-	const products = useQuery({
-		queryKey: ["store", "productsByIds", productIds],
-		queryFn: () => withMappedError(() => TaxonomyEndpoints.getProductsByIds(productIds)),
-		enabled: productIds.length > 0,
-		placeholderData: keepPreviousData,
-		select: (list) => new Map(list.map((p) => [p.id, p])),
-	});
 
 	const removeReply = useMutation({
 		mutationFn: (r: AdminReview) => withMappedError(() => ReviewsEndpoints.removeReply(r.id)),
@@ -120,9 +109,8 @@ export default function ReviewsView() {
 				<>
 					<div className="stack" style={{ opacity: reviews.isFetching ? 0.6 : 1, transition: "opacity .2s" }}>
 						{reviews.data.items.map((r) => {
-							const p = products.data?.get(r.productId);
-							const name = r.product?.name ?? p?.name ?? `محصول #${toPersianDigits(r.productId)}`;
-							const image = r.product?.imageUrl ?? (p?.image ? p.image.thumbnailUrl || p.image.url : null);
+							const name = r.product?.name ?? `محصول #${toPersianDigits(r.productId)}`;
+							const image = r.product?.imageUrl ?? null;
 							return (
 								<article key={r.id} className={classNames("rv", { pending: r.status === "PENDING" })}>
 									<div className="h">
@@ -132,7 +120,14 @@ export default function ReviewsView() {
 										</span>
 										<span>
 											<b>
-												{r.authorName} {r.contact && <small className="ltr">· {r.contact}</small>}
+												{can("support") ? (
+												<Link href={`/customers/${r.customerId}`} title="صفحه‌ی مشتری">
+													{r.authorName}
+												</Link>
+											) : (
+												r.authorName
+											)}{" "}
+											{r.contact && <small className="ltr">· {r.contact}</small>}
 											</b>
 											<small>
 												{can("catalog") ? <Link href={`/products/${r.productId}`}>{name}</Link> : name}

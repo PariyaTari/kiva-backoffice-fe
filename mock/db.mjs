@@ -36,6 +36,8 @@ export const users = [
 		defaultMessenger: pick(["TELEGRAM", "BALE", "RUBIKA"], i),
 		marketingSmsOptIn: i % 4 !== 0,
 	})),
+	// a shopper who deleted the account (1.21.0): anonymised — no phone or name; `GET /admin/customers/{id}` → 404 CUSTOMER_DELETED
+	{ phone: null, firstName: null, lastName: null, email: null, roles: ["CUSTOMER"], createdAt: NOW - 210 * DAY, deletedAt: NOW - 3 * DAY, marketingSmsOptIn: false },
 ].map((u) => ({ id: nextUserId(), defaultMessenger: null, marketingSmsOptIn: true, ...u }));
 
 export const userByPhone = (phone) => users.find((u) => u.phone === phone);

@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, useRef, useState } from "react";
+import { DragEvent, useEffect, useRef, useState } from "react";
 import classNames from "classnames";
 import { useMutation } from "@tanstack/react-query";
 import { PanelEndpoints } from "@/app/(panel)/_api/panelEndpoints";
@@ -60,6 +60,12 @@ export default function MediaUploader({ purpose, onUploaded, accept, multiple = 
 	const input = useRef<HTMLInputElement>(null);
 	const [pending, setPending] = useState<Pending[]>([]);
 	const [drag, setDrag] = useState(false);
+	// uploads still running when the field goes away (a modal closed mid-upload) are cancelled, not left to finish unseen
+	const running = useRef(new Set<AbortController>());
+	useEffect(() => {
+		const set = running.current;
+		return () => set.forEach((a) => a.abort());
+	}, []);
 
 	const patch = (key: string, change: Partial<Pending>) => setPending((list) => list.map((p) => (p.key === key ? { ...p, ...change } : p)));
 	const drop = (key: string) =>
@@ -71,8 +77,9 @@ export default function MediaUploader({ purpose, onUploaded, accept, multiple = 
 
 	// one mutation, many calls: the hook-level callbacks run for every file (the per-call ones only for the last)
 	const upload = useMutation({
-		mutationFn: ({ file, key, signal }: { file: File; key: string; signal: AbortSignal }) =>
-			withMappedError(() => PanelEndpoints.uploadMedia(file, purpose, null, (progress) => patch(key, { progress }), signal)),
+		mutationFn: ({ file, key, abort }: { file: File; key: string; abort: AbortController }) =>
+			withMappedError(() => PanelEndpoints.uploadMedia(file, purpose, null, (progress) => patch(key, { progress }), abort.signal)),
+		onSettled: (_data, _error, { abort }) => running.current.delete(abort),
 		onSuccess: (asset, { key }) => {
 			drop(key);
 			onUploaded(asset);
@@ -102,7 +109,11 @@ export default function MediaUploader({ purpose, onUploaded, accept, multiple = 
 			} satisfies Pending,
 		}));
 		setPending((list) => [...list, ...next.map((n) => n.tile)]);
-		next.forEach(({ file, tile }) => !tile.error && upload.mutate({ file, key: tile.key, signal: tile.abort.signal }));
+		next.forEach(({ file, tile }) => {
+			if (tile.error) return;
+			running.current.add(tile.abort);
+			upload.mutate({ file, key: tile.key, abort: tile.abort });
+		});
 		if (input.current) input.current.value = "";
 	};
 

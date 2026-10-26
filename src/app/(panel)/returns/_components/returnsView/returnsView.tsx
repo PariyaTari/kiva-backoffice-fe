@@ -77,7 +77,8 @@ export default function ReturnsView() {
 					<span className="sub">
 						{r.customer.phone ? (
 							<>
-								{r.customer.fullName ?? "—"} · <span className="ltr">{formatPhone(r.customer.phone)}</span>
+								{can("support") ? <Link href={`/customers/${r.customer.id}`}>{r.customer.fullName || "بدون نام"}</Link> : (r.customer.fullName ?? "—")} ·{" "}
+								<span className="ltr">{formatPhone(r.customer.phone)}</span>
 							</>
 						) : (
 							DELETED_ACCOUNT

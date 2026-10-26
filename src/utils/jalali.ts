@@ -90,3 +90,13 @@ export function jalaliToGregorian(value: string): string | null {
 	const { gy, gm, gd } = d2g(j2d(jy, jm, jd));
 	return `${gy}-${pad(gm)}-${pad(gd)}`;
 }
+
+/**
+ * A `from`/`to` day filter read from the address bar: a malformed day is dropped (`400 DATE_INVALID`), and `from`
+ * after `to` is caught here — the list endpoints answer it with `400 DATE_RANGE_INVALID`, which is not a code bug.
+ */
+export function dayRange(from: string, to: string) {
+	const day = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined);
+	const range = { from: day(from), to: day(to) };
+	return { ...range, inverted: !!(range.from && range.to && range.from > range.to) };
+}

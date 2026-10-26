@@ -109,7 +109,7 @@ function StockForm({ target, onClose }: { target: StockTarget; onClose: () => vo
 				/>
 				{target.stockAlertSubscribers > 0 && target.stockOnHand - target.stockReserved <= 0 && delta > 0 && (
 					<p className="note success">
-						{toPersianDigits(target.stockAlertSubscribers)} نفر منتظر «موجود شد» این رنگ‌اند؛ با ثبت این ورود برایشان پیامک صف می‌شود.
+						{toPersianDigits(target.stockAlertSubscribers)} نفر منتظر «موجود شد» این رنگ‌اند؛ با ثبت این ورود تا ۵ دقیقه بعد برایشان پیامک می‌رود (نه بین ۲۲ تا ۸ صبح).
 					</p>
 				)}
 				<Textarea label="یادداشت" labelNote="اختیاری" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} error={errors.note} style={{ minHeight: 70 }} />

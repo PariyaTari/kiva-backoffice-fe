@@ -26,7 +26,7 @@ export default function InventoryView() {
 		queryFn: ({ signal }) => withMappedError(() => ProductsEndpoints.getProducts({ q: term, sort: "name" }, 1, 8, signal)),
 		enabled: !!term,
 		placeholderData: keepPreviousData,
-		meta: { showNotification: true },
+		meta: { showNotificationOnRefetch: true },
 	});
 	const product = useQuery({
 		queryKey: ["products", "detail", productId],
@@ -35,6 +35,7 @@ export default function InventoryView() {
 		meta: { showNotificationOnRefetch: true },
 	});
 
+	const foundError = toErrorView(ERROR_BEHAVIOUR, found.error, "جستجوی محصول با خطا مواجه شد.");
 	const productError = toErrorView(ERROR_BEHAVIOUR, product.error, "دریافت محصول با خطا مواجه شد.");
 
 	return (
@@ -55,21 +56,34 @@ export default function InventoryView() {
 						placeholder="نام یا SKU محصول"
 					/>
 				</div>
-				{!!term && !productId && (
-					<div className="chip-row">
-						{found.data?.items.length ? (
-							found.data.items.map((p) => (
-								<button key={p.id} type="button" className="btn btn-white btn-sm" onClick={() => setProductId(p.id)}>
-									{p.name} <span className="muted ltr">{p.sku}</span>
-								</button>
-							))
-						) : found.isFetching ? (
-							<span className="muted">در حال جستجو…</span>
-						) : (
-							<span className="muted">محصولی پیدا نشد.</span>
-						)}
-					</div>
-				)}
+				{!!term &&
+					!productId &&
+					// a failed search is not «nothing found» — say so, with its retry
+					(foundError ? (
+						<ErrorComponent
+							retryable={foundError.retryable}
+							ticketAble={foundError.ticketAble}
+							errorText={foundError.errorText}
+							executeFunction={() => found.refetch()}
+							variant="text"
+							height={56}
+							loading={found.isFetching}
+						/>
+					) : (
+						<div className="chip-row">
+							{found.data?.items.length ? (
+								found.data.items.map((p) => (
+									<button key={p.id} type="button" className="btn btn-white btn-sm" onClick={() => setProductId(p.id)}>
+										{p.name} <span className="muted ltr">{p.sku}</span>
+									</button>
+								))
+							) : found.isFetching ? (
+								<span className="muted">در حال جستجو…</span>
+							) : (
+								<span className="muted">محصولی پیدا نشد.</span>
+							)}
+						</div>
+					))}
 				{productId !== null &&
 					(productError ? (
 						<ErrorComponent

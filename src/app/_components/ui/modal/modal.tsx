@@ -25,8 +25,15 @@ export default function Modal({ open, onClose, children, width }: ModalProps) {
 
 	useEffect(() => {
 		if (open) {
-			const frame = requestAnimationFrame(() => requestAnimationFrame(() => setEntered(true)));
-			return () => cancelAnimationFrame(frame);
+			// both frames are cancelled: closing between them must not leave `entered` set for the next open
+			let inner = 0;
+			const outer = requestAnimationFrame(() => {
+				inner = requestAnimationFrame(() => setEntered(true));
+			});
+			return () => {
+				cancelAnimationFrame(outer);
+				cancelAnimationFrame(inner);
+			};
 		}
 		const timer = setTimeout(() => setMounted(false), LEAVE_MS);
 		return () => clearTimeout(timer);

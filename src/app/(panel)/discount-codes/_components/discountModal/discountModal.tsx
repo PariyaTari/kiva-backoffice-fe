@@ -67,9 +67,10 @@ function DiscountForm({ code, onClose }: Omit<DiscountModalProps, "open">) {
 	const [touched, setTouched] = useState(false);
 	const set = <K extends keyof DiscountCodeUpsertRequest>(key: K, value: DiscountCodeUpsertRequest[K]) => setV((x) => ({ ...x, [key]: value }));
 
+	// the page is ADMIN-only, so the panel's own list — every category, not only the storefront's menu
 	const categories = useQuery({
-		queryKey: ["taxonomy", "categories"],
-		queryFn: () => withMappedError(() => TaxonomyEndpoints.getCategories()),
+		queryKey: ["taxonomy", "adminCategories"],
+		queryFn: () => withMappedError(() => TaxonomyEndpoints.getAdminCategories()),
 		meta: { showNotification: true },
 	});
 

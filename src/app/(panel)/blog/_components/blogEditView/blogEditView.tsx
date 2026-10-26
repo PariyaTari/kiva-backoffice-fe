@@ -33,11 +33,10 @@ export default function BlogEditView({ id }: { id: number | null }) {
 		queryFn: () => withMappedError(() => BlogEndpoints.getCategories()),
 		meta: { showNotificationOnRefetch: true },
 	});
-	// authors: only those the posts already have (FEATURES §7 #2 — no authors list in the contract)
+	// 1.22.0 — every author, the default one first; a failed list leaves only «پیش‌فرض» in the select (the toast says why)
 	const authors = useQuery({
-		queryKey: ["blog", "list", { status: "", q: "", category: "", page: 1, pageSize: 100 }],
-		queryFn: () => withMappedError(() => BlogEndpoints.getPosts({}, 1, 100)),
-		select: (list) => [...new Map(list.items.filter((p) => p.author).map((p) => [p.author!.id, { id: p.author!.id, name: p.author!.name }])).values()],
+		queryKey: ["blog", "authors"],
+		queryFn: () => withMappedError(() => BlogEndpoints.getAuthors()),
 		meta: { showNotification: true },
 	});
 

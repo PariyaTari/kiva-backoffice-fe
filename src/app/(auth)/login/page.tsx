@@ -12,8 +12,18 @@ import PhoneStep from "./_components/phoneStep/phoneStep";
 
 type LoginStep = "phone" | "otp";
 
-/** Only same-site paths — `?next=//evil.com` must never become an open redirect. */
-const safeNext = (value: string | null) => (value && value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/login") ? value : "/");
+/**
+ * Only same-site paths — `?next=//evil.com` must never become an open redirect. Resolved the way the browser will
+ * (`/\evil.com` and `/\t/evil.com` are other hosts too), so a prefix check alone is not enough.
+ */
+const safeNext = (value: string | null) => {
+	if (!value?.startsWith("/") || value.startsWith("/login")) return "/";
+	try {
+		return new URL(value, "http://panel.invalid").host === "panel.invalid" ? value : "/";
+	} catch {
+		return "/";
+	}
+};
 
 /**
  * `/login?next=…` — phone → OTP, then back to `next`. No name step: panel accounts are existing ones; a number

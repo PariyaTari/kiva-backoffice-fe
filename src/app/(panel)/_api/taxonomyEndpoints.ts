@@ -1,5 +1,5 @@
 import { httpClient } from "@/httpClient/HttpClient";
-import { AdminCategory, Category, Material } from "@/types/catalog.type";
+import { AdminCategory, Material } from "@/types/catalog.type";
 import { StoreProduct } from "@/types/marketing.type";
 import { Color } from "@/types/order.type";
 
@@ -11,12 +11,6 @@ export const TaxonomyEndpoints = {
 	/** Every category, including those hidden from the menu (`GET /admin/categories`, ADMIN · CATALOG_MANAGER). */
 	getAdminCategories: async () => {
 		const res = await httpClient.call<AdminCategory[]>({ method: "GET", url: "admin/categories" });
-		return res.data;
-	},
-
-	/** Public menu categories — for roles without catalogue access (content editor's discount/campaign pickers). */
-	getCategories: async () => {
-		const res = await httpClient.call<Category[]>({ method: "GET", url: "categories" });
 		return res.data;
 	},
 

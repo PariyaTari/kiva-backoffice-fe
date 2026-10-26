@@ -23,7 +23,7 @@ for (const p of D.POSTS) if (!blogCategories.some((c) => c.slug === p.catSlug)) 
 const authors = [];
 for (const p of D.POSTS) {
 	const [name, title] = p.au.split(" — ");
-	if (!authors.some((a) => a.name === name)) authors.push({ id: authors.length + 1, name, title: title || "تیم کیوا", initial: name[0], avatarUrl: null, bio: D.AUTHOR_BIO });
+	if (!authors.some((a) => a.name === name)) authors.push({ id: authors.length + 1, name, title: title || "تیم کیوا", initial: name[0], avatarUrl: null, bio: D.AUTHOR_BIO, isDefault: !authors.length });
 }
 let POST_SEQ = 100;
 const posts = D.POSTS.map((p, i) => ({
@@ -116,7 +116,7 @@ function postFrom(b, prev, me) {
 	const status = b.status || prev?.status || "DRAFT";
 	let h = 0;
 	return {
-		title: b.title.trim(), slug: b.slug, excerpt: b.excerpt ?? "", lead: b.lead ?? "", categoryId: Number(b.categoryId), authorId: Number(b.authorId) || prev?.authorId || 1,
+		title: b.title.trim(), slug: b.slug, excerpt: b.excerpt ?? "", lead: b.lead ?? "", categoryId: Number(b.categoryId), authorId: Number(b.authorId) || authors.find((a) => a.isDefault).id,
 		cover: coverAsset ? { id: coverAsset.id, type: coverAsset.type, url: coverAsset.url, thumbnailUrl: coverAsset.thumbnailUrl, alt: b.title } : b.coverMediaId ? prev?.cover ?? null : null,
 		coverBackground: b.coverBackground ?? null, readingMinutes: b.readingMinutes ?? Math.max(1, Math.round(words / 180)),
 		blocks: b.blocks.map((k) => {
@@ -159,6 +159,11 @@ route("GET", "/admin/blog/posts", (ctx) => {
 	const list = posts.filter((p) => (!q.status || p.status === q.status) && inCategory(p, q.category) && matches(p, q)).sort((a, b) => b.updatedAt - a.updatedAt);
 	const { items, meta } = paginate(list, q, 20);
 	return { items: items.map((p) => adminView(p, false)), meta };
+});
+// 1.22.0 — every author for the post form: the default one first, then by creation (no writes: authors are made by SQL)
+route("GET", "/admin/blog/authors", (ctx) => {
+	staff(ctx, ...ROLES);
+	return [...authors].sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.id - b.id);
 });
 route("GET", "/admin/blog/posts/:id", (ctx) => {
 	staff(ctx, ...ROLES);

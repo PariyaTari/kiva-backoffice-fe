@@ -5,14 +5,14 @@
 import { DAY, HOUR, checker, fail, iso, normQ, notFound, paginate, route } from "../lib.mjs";
 import { endSessionsOf, staff } from "../auth.mjs";
 import { actorNameOf, fullNameOf, userById, users } from "../db.mjs";
-import { colorView, products } from "../catalog.mjs";
+import { colorView, products, variantImage } from "../catalog.mjs";
 import { listItem, orders } from "./orders.mjs";
 import * as D from "../data.mjs";
 
 const ROLES = ["SUPPORT"];
 const NOW = Date.now();
 const PANEL_ROLES = ["ADMIN", "CATALOG_MANAGER", "OPERATOR", "CONTENT_EDITOR", "SUPPORT"];
-const customers = users.filter((u) => u.roles.length === 1);
+const customers = users.filter((u) => u.roles.length === 1 && !u.deletedAt);
 
 // ───────────── reviews ─────────────
 let REVIEW_SEQ = 5500;
@@ -39,9 +39,9 @@ reviews.sort((a, b) => b.createdAt - a.createdAt);
 const STATUS_LABEL = { PENDING: "در انتظار تأیید", APPROVED: "تأیید شد", REJECTED: "رد شد" };
 const reviewView = (r) => {
 	const p = products.find((x) => x.id === r.productId);
-	// 1.21.0 — `product` is only filled in the shopper's «نظرات من»; the panel reads names by `productId`
+	// 1.22.0 — the panel gets `product` too, whatever state the product is in now
 	return {
-		id: r.id, productId: r.productId, product: null,
+		id: r.id, productId: r.productId, product: p ? { id: p.id, slug: p.slug, sku: p.sku, name: p.name, imageUrl: p.variants[0] ? variantImage(p, p.variants[0]) : null, colorKey: r.purchasedColorKey } : null,
 		authorName: r.authorName || "کاربر کیوا", authorInitial: (r.authorName || "ک")[0], rating: r.rating, title: null, text: r.text, createdAt: iso(r.createdAt), status: r.status, statusLabel: STATUS_LABEL[r.status],
 		rejectionReason: r.rejectionReason, isVerifiedBuyer: r.isVerifiedBuyer, purchasedColor: p ? colorView(r.purchasedColorKey) : null,
 		// the reply shows only while the review is approved (a rejection keeps it, hidden)
@@ -174,6 +174,8 @@ route("GET", "/admin/customers", (ctx) => {
 	if (role && role !== "CUSTOMER" && !PANEL_ROLES.includes(role)) fail(400, "VALIDATION_ERROR", "نقش معتبر نیست.", { errors: [{ field: "role", code: "ROLE_INVALID", message: "نقش معتبر نیست." }] });
 	const digits = q.replace(/\D/g, "");
 	const list = users
+		// deleted accounts never come back
+		.filter((u) => !u.deletedAt)
 		.filter((u) => !q || (digits && u.phone.includes(digits)) || (fullNameOf(u) || "").includes(q))
 		// `role` = only people with that role; `CUSTOMER` = everyone
 		.filter((u) => !role || role === "CUSTOMER" || u.roles.includes(role))
@@ -203,6 +205,7 @@ function addressesOf(u) {
 route("GET", "/admin/customers/:id", (ctx) => {
 	staff(ctx, ...ROLES);
 	const u = users.find((x) => x.id === Number(ctx.params.id)) || notFound("NOT_FOUND", "این کاربر پیدا نشد.");
+	if (u.deletedAt) notFound("CUSTOMER_DELETED", "این حساب حذف شده.");
 	return {
 		...customerView(u), firstName: u.firstName ?? null, lastName: u.lastName ?? null, birthDate: null, gender: "UNSPECIFIED",
 		defaultMessengerPhone: u.defaultMessenger ? u.phone : null, addresses: addressesOf(u),
@@ -213,6 +216,7 @@ route("GET", "/admin/customers/:id", (ctx) => {
 route("PUT", "/admin/customers/:id/roles", (ctx) => {
 	const me = staff(ctx); // ADMIN only
 	const u = users.find((x) => x.id === Number(ctx.params.id)) || notFound("NOT_FOUND", "کاربر پیدا نشد.");
+	if (u.deletedAt) notFound("CUSTOMER_DELETED", "این حساب حذف شده.");
 	const roles = ctx.body?.roles;
 	if (!Array.isArray(roles) || roles.some((r) => r !== "CUSTOMER" && !PANEL_ROLES.includes(r)))
 		fail(400, "VALIDATION_ERROR", "نقش‌ها معتبر نیستند.", { errors: [{ field: "roles", code: "INVALID", message: "نقش‌ها معتبر نیستند." }] });

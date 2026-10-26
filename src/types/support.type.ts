@@ -1,4 +1,4 @@
-/** Reviews, contact messages and customers as the panel sees them (kiva-openapi.yml 1.21.0 · Admin · Support). */
+/** Reviews, contact messages and customers as the panel sees them (kiva-openapi.yml 1.22.0 · Admin · Support). */
 import { MediaAsset, Money, OrderCode, PhotoMessengerChannel } from "./common.type";
 import { AdminOrderListItem, Color } from "./order.type";
 import { PageMeta } from "./pageinate";
@@ -10,7 +10,7 @@ export type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type AdminReview = {
 	id: number;
 	productId: number;
-	/** 1.21.0 — only filled in the shopper's «نظرات من»; `null` here (the panel reads the names by id). */
+	/** 1.22.0 — filled in the panel too, whatever state the product is in now. */
 	product: { id: number; slug: string; sku?: string; name: string; imageUrl?: string | null } | null;
 	/** What the author typed, else «کاربر کیوا». */
 	authorName: string;
@@ -117,7 +117,10 @@ export type CustomerAddress = {
 	createdAt?: string;
 };
 
-/** `GET /admin/customers/{id}` — the customer page: the full profile, every address (default first) and the last 5 orders in any state. */
+/**
+ * `GET /admin/customers/{id}` — the customer page: the full profile, every address (default first) and the last 5
+ * orders in any state. A deleted account answers `404 CUSTOMER_DELETED` (1.22.0).
+ */
 export type AdminCustomerDetail = AdminCustomer & {
 	firstName: string | null;
 	lastName: string | null;

@@ -2,10 +2,10 @@
 
 > شروع: ۱۸ مهر ۱۴۰۵ (2026-10-10)
 > مسیر: `D:\pariya\kiva-backoffice-fe`
-> مراجع: **`D:\pariya\kiva-backoffice-fe\kiva-openapi.yml` (1.5.0)** از جلسه‌ی ۳ (کپی یکسان در `kiva-fe`؛ نسخه‌ی 1.4.0 در git فروشگاه)، بخش `/admin/*` · `D:\pariya\kiva-fe\docs\FEATURES.md` (بخش‌های پنل، نقش‌ها، چرخه‌ها، شکاف‌ها) · `D:\pariya\kiva-fe\README.md`
+> مراجع: **`D:\pariya\kiva-backoffice-fe\kiva-openapi.yml` (1.22.0)** — از جلسه‌ی ۳ مرجع همین فایل است، بخش `/admin/*` · `D:\pariya\kiva-fe\docs\FEATURES.md` (بخش‌های پنل، نقش‌ها، چرخه‌ها، شکاف‌ها) · `D:\pariya\kiva-fe\README.md`
 > ساختار کد: عین `kiva-fe` (Next.js 16 App Router، TS، Tailwind 3، TanStack Query v5، Zustand، axios). فچ: اسکیل `data-fetching` (+ `error-ui`). ظاهر: دیزاین‌سیستم کیوا (`src/tailwind/kiva/*` = `kiva/assets/kiva.css`) و الگوی پنل حساب کاربری فروشگاه (`account.html`: منوی کناری `.snav`، کارت‌ها، `.seg`، `.tag`، مودال، توست).
 
-> **وضعیت (جلسه‌ی ۴، ۳ آبان ۱۴۰۵):** کانترکت **1.21.0** است (`kiva-openapi.yml` همین پروژه). فازهای ۰ تا ۱۳ انجام و تست شده؛ هر ۸۰ متد `/admin/*` صدا زده می‌شود و mock همه را دارد. تغییرات جلسه‌های ۳–۴ هنوز کامیت نشده‌اند. کار بعدی: «کارهای باز» پایین.
+> **وضعیت (جلسه‌ی ۵، ۴ آبان ۱۴۰۵):** کانترکت **1.22.0** است (`kiva-openapi.yml` همین پروژه). فازهای ۰ تا ۱۴ انجام و تست شده؛ هر ۸۱ متد `/admin/*` صدا زده می‌شود و mock همه را دارد. جلسه‌ی ۴ کامیت شد (`04581cb`)؛ تغییرات جلسه‌ی ۵ هنوز کامیت نشده‌اند. کار بعدی: «کارهای باز» پایین.
 
 ## ⏯ ادامه در چت جدید — اول این را بخوان
 
@@ -219,6 +219,19 @@ kiva-backoffice-fe/
 | 13.8 | **mock به 1.21.0:** پیش‌نویس عکس جدا (`draftItems`، ثبت ارسال پیش‌نویس را می‌فرستد، `PHOTOS_INCOMPLETE`)، ارسال فقط از `PHOTO_SENT` بعد از پاسخ/مهلت (`AWAITING_CUSTOMER_FEEDBACK`، `GROUP_NOT_READY`، اصلاح ارسال)، `refundStatus`/`sort`، `TRANSITIONS` کانترکت، و همه‌ی قانون‌های بالا | ✅ |
 | 13.9 | `useUrlFilters`: «همه» کنار تب پیش‌فرض دیگر به پیش‌فرض برنمی‌گشت (مرجوعی، پیام تماس، نظرات، خبرنامه) | ✅ |
 
+### فاز ۱۴ — کانترکت 1.22.0 و ممیزی کامل (جلسه‌ی ۵)
+تغییرات 1.21.0 ← 1.22.0: یک endpoint تازه (`GET /admin/blog/authors` با `AdminBlogAuthor` = `BlogAuthor` + `isDefault`)، `Review.product` در پنل هم پر است، `GET/PUT /admin/customers/{id}` برای حساب حذف‌شده `404 CUSTOMER_DELETED`، کلید تکراری `404` ِ yml برداشته شد. هیچ endpointی حذف نشد.
+
+| # | کار | وضعیت |
+|---|---|---|
+| 14.1 | **نویسنده‌ها:** `BlogEndpoints.getAuthors` (کلید `["blog","authors"]`)؛ انتخاب نویسنده «پیش‌فرض (نام)» از `isDefault`، گزینه‌ها «نام — عنوان»؛ دسته‌ها طبق کانترکت از `GET /blog/categories` | ✅ |
+| 14.2 | **نظرات:** نام و عکس محصول از خود `r.product` — کوئری `GET /products?ids=` حذف شد | ✅ |
+| 14.3 | **حساب حذف‌شده:** `customers/_utils/apiError.ts` (مپ ماژول + `isCustomerDeletedError`) ← صفحه‌ی مشتری «این حساب حذف شده» (handled outcome)؛ لیست مشتریان هم از همین مپ | ✅ |
+| 14.4 | **mock به 1.22.0:** `GET /admin/blog/authors` و نویسنده‌ی پیش‌فرض، یک حساب حذف‌شده با سفارش تحویل‌شده‌ی بی‌نام، `product` در نظرات، `CUSTOMER_DELETED` | ✅ |
+| 14.5 | **ممیزی و رفع باگ** (جزئیات در گزارش جلسه‌ی ۵): open redirect در `/login`، افتادن داشبورد با `?range=` دستی، بازه‌ی تاریخ برعکس در لاگ تغییرات و سفارش‌ها، خطای جستجوی موجودی، دسته‌های کد تخفیف، FAQ، `Modal`، `MediaUploader`، thumbnail ویدیو | ✅ |
+| 14.6 | لینک نام مشتری به `/customers/{id}` در مرجوعی و نظرات (فقط `can("support")`) | ✅ |
+| 14.7 | جمع‌بندی: README، `tsc` + `eslint` + `next build`، تست در پنل مرورگر | ✅ |
+
 ---
 
 ## گزارش جلسه‌ها
@@ -308,16 +321,31 @@ kiva-backoffice-fe/
 - فاز ۱۲.۸–۱۲.۱۰ و فاز ۱۳ (جدول بالا) انجام شد. فایل‌های تازه: `types/audit.type.ts`، `(panel)/_api/auditEndpoints.ts`، `(panel)/_components/auditHistory`، `auditChanges`، `(panel)/audit-log`، `(panel)/newsletter`، `customers/[id]`، `customers/_components/customerDetailView`، `rolesModal` (از `customersView` جدا شد)، `mock/admin/audit.mjs`.
 - تست (mock + پنل، ADMIN): لیست بلاگ (۸ مقاله با پیش‌نویس/زمان‌بندی/آرشیو/محصول برداشته‌شده)، ذخیره‌ی مقاله‌ی ۳ ← خطای `blocks.2.productId` زیر همان بلوک؛ خبرنامه (۳۹ فعال، «همه» = ۴۶)؛ لاگ تغییرات؛ `KV-220389` پیش‌نویس ← «ثبت ارسال» ← «عکس کیف ارسال شد» و ردیف تازه در کارت تاریخچه؛ `RT-1015` ← مودال استرداد با ۱٬۷۵۰٬۰۰۰ پیشنهادی و شبا ← ثبت؛ استرداد دوم `RETURN_REFUND_EXISTS` و بستن `RETURN_REFUND_OPEN` (curl)؛ مشتری ۱۰۱۰؛ پاسخ پیامکی پیام تماس؛ نظرات با نام محصول؛ همه‌ی ۱۸ صفحه‌ی دیگر بدون خطای شبکه؛ ۳۷۵px بدون اسکرول افقی. `tsc` ✅ · `eslint src mock` ✅ (همان یک هشدار قدیمی `toEn`) · `next build` ✅ (۳۳ مسیر).
 
+### جلسه‌ی ۵ (۳–۴ آبان ۱۴۰۵)
+- کانترکت **1.22.0** گذاشته شد. diff با اسکریپت `js-yaml` (paths + schemas + متن توضیح‌ها) ← فاز ۱۴. حالا yml بدون `json: true` هم بار می‌شود (کلید تکراری رفت). اسکریپت پوشش: هر ۸۱ متد `/admin/*` در `src/**/_api/*Endpoints.ts` هست (سفارش و محصول از راه `orderUrl`/`productUrl`).
+- **ممیزی سنیور کل پروژه** (همه‌ی ماژول‌ها، کامپوننت‌های مشترک، httpClient، ورود). اسکیل‌ها: همه‌ی `queryFn`/`mutationFn` با `withMappedError`، هیچ `retry`، `ErrorComponent` نسخه‌ی ۱، `errorText` ثابت یا پسوند `Query`/`Mutation` نیست؛ کوئری‌های بی‌صدا فقط شمارنده‌ها و «سفارش تازه» (عمدی). صفحه‌ای که endpoint داشته باشد و پنل نداشته باشد نمانده. باگ‌ها و اصلاح‌ها:
+  - **امنیت:** `safeNext` ِ `/login` فقط پیشوند `//` را می‌بست؛ `?next=/\evil.com` (و `/` با تب یا خط تازه و بعد `/`) را مرورگر `//evil.com` می‌خواند ← open redirect. حالا مسیر با `new URL` حل و host مقایسه می‌شود. `useRequireLogin` حالا query را هم در `next` نگه می‌دارد (`window.location.search` داخل effect، تا layout پنل `useSearchParams`/Suspense نخواهد).
+  - **داشبورد:** `?range=abc` ← `Number` ← `NaN` ← `RangeError` در `Intl.DateTimeFormat` و کل صفحه می‌افتاد ← بازه با `RANGES` اعتبارسنجی و پیش‌فرض ۳۰.
+  - **بازه‌ی تاریخ:** در لاگ تغییرات `from` بعد از `to` ← `400 DATE_RANGE_INVALID` ← `VALIDATION_ERROR` = `CLIENT_BUG` (بلوک خطا با دکمه‌ی تیکت برای اشتباه کاربر). `dayRange` در `utils/jalali.ts`: روز بدشکل URL حذف، بازه‌ی برعکس قبل از درخواست گرفته می‌شود ← کوئری `enabled: false` و «بازه‌ی تاریخ برعکس است» (لاگ تغییرات و سفارش‌ها؛ CSV غیرفعال).
+  - **موجودی انبار:** جستجوی شکست‌خورده «محصولی پیدا نشد» نشان می‌داد ← `ErrorComponent2` فشرده (`height={56}`، `variant="text"`) با `toErrorView` و `meta.showNotificationOnRefetch`.
+  - **کد تخفیف:** دسته‌ها از `GET /categories` عمومی بود ← `getAdminCategories` (صفحه فقط ADMIN است؛ همه‌ی دسته‌ها؛ همان کلید `["taxonomy","adminCategories"]`). `TaxonomyEndpoints.getCategories` دیگر استفاده نداشت و حذف شد.
+  - **مودال موجودی:** متن پیامک «موجود شد» طبق کانترکت (کار زمان‌بندی‌شده تا ۵ دقیقه بعد، نه ۲۲ تا ۸ صبح).
+  - **FAQ:** خطای سرور روی گروه بسته دیده نمی‌شد ← `onError` اولین گروه خطادار را باز می‌کند؛ گروه باز با جابه‌جایی/حذف همراه ردیفش می‌ماند (`openAfter`).
+  - **`Modal`:** فقط rAF بیرونی لغو می‌شد؛ بستن بین دو فریم `entered` را برای باز شدن بعدی روشن می‌گذاشت.
+  - **`MediaUploader`:** آپلودهای در جریان با unmount (بستن مودال وسط آپلود) لغو می‌شوند (`Set` ِ `AbortController`ها).
+  - **ورینت‌ها:** وقتی مدیای اصلی ویدیوی بی‌thumbnail بود، فایل mp4 در `<img>` می‌رفت ← poster یا آیکن ویدیو.
+  - mock: هشدار قدیمی `toEn` ِ `catalog.mjs`.
+- **فقط mock/ثابت؟** پنل هیچ داده‌ی ثابتی به‌جای API ندارد. ولی فروشگاه (`kiva-fe`) بنرهای صفحه‌ی اصلی (`homeContent`) و نوار اطلاعیه/فوتر/پشتیبانی/شبکه‌ها (`SITE_CONFIG` از `/kiva-configs/config` ِ خود Next) را هنوز از `GET /banners` و `GET /config` نمی‌خواند — یادداشت‌های صفحه‌های بنر، اطلاعیه و تنظیمات درست‌اند و ماندند.
+- تست (mock + پنل مرورگر، ADMIN): `/login?next=/\example.com` ← `/`؛ ورود از `/login?next=/orders?q=&tab=DELIVERED` ← همان آدرس با query؛ `/?range=abc` ← گزارش ۳۰ روزه؛ `/audit-log` و `/orders` با بازه‌ی برعکس ← پیام، بدون درخواست به API؛ `/customers/1052` ← «این حساب حذف شده»؛ `KV-220058` ← «حساب حذف‌شده» در صف و جزئیات؛ نظرات با نام/عکس محصول و لینک مشتری؛ `/blog/new` ← «پیش‌فرض (نیلوفر)» از `/admin/blog/authors`؛ جستجوی موجودی با mock خاموش ← نوار خطای شبکه با «تلاش مجدد». `tsc` ✅ · `eslint src mock` ✅ (بدون هشدار) · `next build` ✅ (۳۳ مسیر).
+
 ---
 
 ## کارهای باز (برای جلسه‌های بعد)
 
-**از بک‌اند بپرس / درخواست بده:**
-1. `/admin/blog/categories` و `/admin/blog/authors` — دسته‌ها الان از بلاگ عمومی و نویسنده‌ها از روی مقاله‌ها.
-2. `GET /admin/customers/{id}` برای حساب حذف‌شده `404 NOT_FOUND` ِ عمومی می‌دهد — یک کد دامنه‌ای (مثل `CUSTOMER_NOT_FOUND`) لازم است تا پنل «حساب حذف شده» را از «مسیر اشتباه» جدا کند.
-3. `Review.product` در `GET /admin/reviews` همیشه `null` است — پنل نام‌ها را از `GET /products?ids=` می‌خواند و محصول منتشرنشده فقط با شناسه دیده می‌شود؛ بهتر است پنل `product` را بگیرد.
-4. کلید تکراری `404` در yml (بالا).
-5. مجاز کردن origin پنل (`http://localhost:3200` در توسعه، `admin.kiva.ir` در پروداکشن) برای `refresh`/`logout`.
+**از بک‌اند بپرس / درخواست بده:** (موارد ۱ تا ۴ جلسه‌ی ۴ در 1.22.0 حل شدند: نویسنده‌ها، `CUSTOMER_DELETED`، `Review.product`، کلید تکراری yml)
+1. مجاز کردن origin پنل (`http://localhost:3200` در توسعه، `admin.kiva.ir` در پروداکشن) برای `refresh`/`logout`.
+
+**فروشگاه (`kiva-fe`، بیرون از این پروژه):** خواندن بنرها از `GET /banners` و نوار اطلاعیه/فوتر/پشتیبانی/شبکه‌ها از `GET /config` ِ بک‌اند به‌جای محتوای ثابت؛ بعدش یادداشت‌های «فروشگاه فعلاً … ثابت» در صفحه‌های بنر، اطلاعیه و تنظیمات پنل برداشته شوند.
 
 **بهبودهای پیشنهادی در خود پنل:** فازهای ۹ تا ۱۱ انجام شد. ایده‌های بعدی (هیچ‌کدام شروع نشده، فقط اگر کاربر خواست):
 - جستجوی سریع: `aria-activedescendant` برای صفحه‌خوان‌ها (الان فوکوس روی input می‌ماند و ردیف فعال فقط کلاس `.on` و `aria-selected` دارد).

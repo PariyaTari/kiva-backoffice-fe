@@ -26,6 +26,7 @@ import { toErrorView } from "@/utils/apiError";
 import { downloadCsv } from "@/utils/csv";
 import { toPersianDigits } from "@/utils/digits";
 import { DELETED_ACCOUNT, formatDateTime } from "@/utils/format";
+import { dayRange } from "@/utils/jalali";
 import { labelOf, MESSENGER, optionsOf, ORDER_SORT, ORDER_STATUS, REFUND_STATUS, SHIPPING_METHOD } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 import { OrdersEndpoints } from "../../_api/ordersEndpoints";
@@ -87,6 +88,7 @@ export default function OrdersView() {
 	const queryClient = useQueryClient();
 	const [f, setF] = useUrlFilters(DEFAULTS);
 	const tab = TABS.find((t) => t.key === f.tab) ?? TABS[0];
+	const days = dayRange(f.from, f.to);
 
 	const filters: AdminOrderFilters = {
 		status: tab.statuses ?? [],
@@ -94,8 +96,8 @@ export default function OrdersView() {
 		shippingMethod: (f.ship || undefined) as ShippingMethodCode | undefined,
 		awaitingPhotos: tab.awaiting || undefined,
 		refundStatus: (f.refund || undefined) as AdminOrderFilters["refundStatus"],
-		from: f.from || undefined,
-		to: f.to || undefined,
+		from: days.from,
+		to: days.to,
 		sort: f.sort === "oldest" ? "oldest" : undefined,
 	};
 	const { page, setPage, pageSize, setPageSize } = useTableState({ resetPageOn: [filters] });
@@ -121,6 +123,7 @@ export default function OrdersView() {
 		queryKey: ["orders", "list", { filters, page, pageSize }],
 		queryFn: () => withMappedError(() => OrdersEndpoints.getOrders(filters, page, pageSize)),
 		placeholderData: keepPreviousData,
+		enabled: !days.inverted,
 		meta: { showNotificationOnRefetch: true },
 	});
 
@@ -236,7 +239,7 @@ export default function OrdersView() {
 						حذف فیلترها
 					</button>
 				)}
-				<Button size="sm" variant="white" className="fbar-end" iconStart={<Icon name="download" />} isLoading={exportCsv.isPending} disabled={!orders.data?.meta.totalItems} onClick={() => exportCsv.mutate()}>
+				<Button size="sm" variant="white" className="fbar-end" iconStart={<Icon name="download" />} isLoading={exportCsv.isPending} disabled={days.inverted || !orders.data?.meta.totalItems} onClick={() => exportCsv.mutate()}>
 					خروجی CSV
 				</Button>
 			</div>
@@ -265,7 +268,11 @@ export default function OrdersView() {
 				</p>
 			)}
 
-			{orders.isLoading ? (
+			{days.inverted ? (
+				<div className="tbl-wrap">
+					<TableEmpty icon="cal" title="بازه‌ی تاریخ برعکس است" text="«تا تاریخ» باید همان روز «از تاریخ» یا بعد از آن باشد." />
+				</div>
+			) : orders.isLoading ? (
 				<div className="tbl-wrap">
 					<Loading />
 				</div>

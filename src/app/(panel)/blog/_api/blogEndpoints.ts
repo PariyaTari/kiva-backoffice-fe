@@ -1,9 +1,9 @@
 import { httpClient } from "@/httpClient/HttpClient";
-import { AdminBlogFilters, AdminBlogPost, AdminBlogPostList, BlogCategory, BlogPostUpsertRequest } from "@/types/content.type";
+import { AdminBlogAuthor, AdminBlogFilters, AdminBlogPost, AdminBlogPostList, BlogCategory, BlogPostUpsertRequest } from "@/types/content.type";
 
 /**
- * Blog — `/admin/blog/posts*` (ADMIN, CONTENT_EDITOR): every post (drafts, scheduled, archived) as `AdminBlogPost`.
- * The contract still has no admin categories or authors (FEATURES §7 #2): categories come from the public blog.
+ * Blog — `/admin/blog/posts*` and `/admin/blog/authors` (ADMIN, CONTENT_EDITOR): every post (drafts, scheduled,
+ * archived) as `AdminBlogPost`. Categories come from the public `GET /blog/categories` (every one, empty ones too).
  */
 export const BlogEndpoints = {
 	getPosts: async (filters: AdminBlogFilters, page: number, size: number) => {
@@ -17,6 +17,12 @@ export const BlogEndpoints = {
 
 	getPost: async (id: number) => {
 		const res = await httpClient.call<AdminBlogPost>({ method: "GET", url: `admin/blog/posts/${id}` });
+		return res.data;
+	},
+
+	/** 1.22.0 — every author, published posts or not: the default one (`isDefault`) first, then by creation. Read-only. */
+	getAuthors: async () => {
+		const res = await httpClient.call<AdminBlogAuthor[]>({ method: "GET", url: "admin/blog/authors" });
 		return res.data;
 	},
 

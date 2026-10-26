@@ -66,6 +66,10 @@ function moved<T>(list: T[], i: number, by: number): T[] {
 	return next;
 }
 
+/** Where the open group is once the group at `i` moves by `by` — or is removed (`by = null`): the open one follows its row. */
+const openAfter = (open: number | null, i: number, by: number | null) =>
+	open === null ? null : by === null ? (open === i ? null : open > i ? open - 1 : open) : open === i ? i + by : open === i + by ? i : open;
+
 /** `/faq` — groups (anchor, name, icon, «امضای کیوا») and their questions, in order; saved as one whole tree. */
 export default function FaqView() {
 	const queryClient = useQueryClient();
@@ -92,6 +96,11 @@ export default function FaqView() {
 				FaqEndpoints.replaceAll(groups.map((g) => ({ ...g, name: g.name.trim(), questions: g.questions.map((q) => ({ id: q.id, question: q.question.trim(), answer: q.answer })) }))),
 			),
 		meta: { showNotification: true },
+		// a server problem on a closed group would be invisible — open the first one that has one
+		onError: (e) => {
+			const first = Object.keys(fieldErrorsOf(e))[0];
+			if (first && /^\d+\./.test(first)) setOpenGroup(Number(first.split(".")[0]));
+		},
 		onSuccess: (saved) => {
 			toast(`سوالات متداول ذخیره شد — ${onSiteWithin(STORE_REFRESH_MINUTES.faq)}`, { icon: "check" });
 			const next = saved.map(toInput);
@@ -145,13 +154,39 @@ export default function FaqView() {
 								<button type="button" className="icon-btn" aria-label={openGroup === gi ? "بستن" : "باز کردن"} onClick={() => setOpenGroup(openGroup === gi ? null : gi)}>
 									<Icon name={openGroup === gi ? "up" : "down"} />
 								</button>
-								<button type="button" className="icon-btn" aria-label="گروه بالاتر" disabled={!gi} onClick={() => setGroups((l) => moved(l, gi, -1))}>
+								<button
+									type="button"
+									className="icon-btn"
+									aria-label="گروه بالاتر"
+									disabled={!gi}
+									onClick={() => {
+										setGroups((l) => moved(l, gi, -1));
+										setOpenGroup((o) => openAfter(o, gi, -1));
+									}}
+								>
 									<Icon name="right" />
 								</button>
-								<button type="button" className="icon-btn" aria-label="گروه پایین‌تر" disabled={gi === groups.length - 1} onClick={() => setGroups((l) => moved(l, gi, 1))}>
+								<button
+									type="button"
+									className="icon-btn"
+									aria-label="گروه پایین‌تر"
+									disabled={gi === groups.length - 1}
+									onClick={() => {
+										setGroups((l) => moved(l, gi, 1));
+										setOpenGroup((o) => openAfter(o, gi, 1));
+									}}
+								>
 									<Icon name="left" />
 								</button>
-								<button type="button" className="icon-btn del" aria-label="حذف گروه" onClick={() => setGroups((l) => l.filter((_, k) => k !== gi))}>
+								<button
+									type="button"
+									className="icon-btn del"
+									aria-label="حذف گروه"
+									onClick={() => {
+										setGroups((l) => l.filter((_, k) => k !== gi));
+										setOpenGroup((o) => openAfter(o, gi, null));
+									}}
+								>
 									<Icon name="trash" />
 								</button>
 							</span>

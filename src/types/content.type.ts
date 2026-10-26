@@ -1,4 +1,4 @@
-/** Blog, FAQ and static pages as the panel edits them (kiva-openapi.yml 1.21.0 · Blog, FAQ, Admin · Content). */
+/** Blog, FAQ and static pages as the panel edits them (kiva-openapi.yml 1.22.0 · Blog, FAQ, Admin · Content). */
 import { HtmlString, IconName, MediaAsset, SeoInput, SeoMeta } from "./common.type";
 import { StoreProduct } from "./marketing.type";
 import { PageMeta } from "./pageinate";
@@ -8,6 +8,8 @@ export type BlogBlockType = "HEADING" | "PARAGRAPH" | "QUOTE" | "TIP" | "PRODUCT
 
 export type BlogCategory = { id: number; slug: string; name: string; postCount?: number };
 export type BlogAuthor = { id: number; name: string; title?: string; initial?: string; avatarUrl?: string | null; bio?: string };
+/** 1.22.0 `GET /admin/blog/authors` — `isDefault`: the author of a post saved without `authorId` (at most one). */
+export type AdminBlogAuthor = BlogAuthor & { isDefault: boolean };
 
 export type BlogPostSummary = {
 	id: number;

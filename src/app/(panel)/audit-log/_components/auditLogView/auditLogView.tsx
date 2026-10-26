@@ -20,6 +20,7 @@ import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { AuditEntityType, AuditLogEntry, AuditLogFilters } from "@/types/audit.type";
 import { toErrorView } from "@/utils/apiError";
 import { formatDateTime, formatPhone, relativeTime } from "@/utils/format";
+import { dayRange } from "@/utils/jalali";
 import { AUDIT_ENTITY, labelOf, optionsOf } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 
@@ -47,12 +48,13 @@ const DEFAULTS = { type: "", id: "", actor: "", from: "", to: "" };
 /** `/audit-log` (ADMIN) — every successful write under `/admin/*`: who, when, what, on which thing, and each field from → to. Kept 90 days. */
 export default function AuditLogView() {
 	const [f, setF] = useUrlFilters(DEFAULTS);
+	const days = dayRange(f.from, f.to);
 	const filters: AuditLogFilters = {
 		entityType: (f.type || undefined) as AuditEntityType | undefined,
 		entityId: f.id || undefined,
 		actorId: Number(f.actor) || undefined,
-		from: f.from || undefined,
-		to: f.to || undefined,
+		from: days.from,
+		to: days.to,
 	};
 	const { page, setPage, pageSize, setPageSize } = useTableState({ resetPageOn: [filters] });
 
@@ -60,6 +62,7 @@ export default function AuditLogView() {
 		queryKey: ["audit", "list", { filters, page, pageSize }],
 		queryFn: () => withMappedError(() => AuditEndpoints.getEntries(filters, page, pageSize)),
 		placeholderData: keepPreviousData,
+		enabled: !days.inverted,
 		meta: { showNotificationOnRefetch: true },
 	});
 
@@ -165,7 +168,11 @@ export default function AuditLogView() {
 				)}
 			</div>
 
-			{entries.isLoading ? (
+			{days.inverted ? (
+				<div className="tbl-wrap">
+					<TableEmpty icon="cal" title="بازه‌ی تاریخ برعکس است" text="«تا تاریخ» باید همان روز «از تاریخ» یا بعد از آن باشد." />
+				</div>
+			) : entries.isLoading ? (
 				<div className="tbl-wrap">
 					<Loading />
 				</div>

@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import AuditHistory from "@/app/(panel)/_components/auditHistory/auditHistory";
-import { PANEL_ERRORS as ERROR_BEHAVIOUR } from "@/app/(panel)/_utils/apiError";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
 import Loading from "@/app/_components/common/loading/loading";
 import { Icon } from "@/app/_components/icon/icons";
@@ -23,6 +22,7 @@ import { formatDate, formatDateTime, formatPhone, formatToman } from "@/utils/fo
 import { GENDER, labelOf, MESSENGER, ORDER_STATUS, ORDER_STATUS_TONE, SHIPPING_METHOD } from "@/utils/labels";
 import { withMappedError } from "@/utils/withMappedError";
 import { CustomersEndpoints } from "../../_api/customersEndpoints";
+import { ERROR_BEHAVIOUR, isCustomerDeletedError } from "../../_utils/apiError";
 import { RoleBadges } from "../customersView/customersView";
 import RolesModal from "../rolesModal/rolesModal";
 
@@ -63,9 +63,23 @@ export default function CustomerDetailView({ id }: { id: number }) {
 		{ key: "shipping", title: "ارسال", className: "nowrap", render: (o) => `${labelOf(SHIPPING_METHOD, o.shippingMethod)} · ${o.city}` },
 	];
 
-	const customerError = toErrorView(ERROR_BEHAVIOUR, customer.error, "دریافت اطلاعات مشتری با خطا مواجه شد.");
+	const customerDeleted = isCustomerDeletedError(customer.error);
+	const customerError = customerDeleted ? null : toErrorView(ERROR_BEHAVIOUR, customer.error, "دریافت اطلاعات مشتری با خطا مواجه شد.");
 
 	if (customer.isLoading) return <Loading />;
+	if (customerDeleted)
+		return (
+			<>
+				<PageHead title="مشتری" back={BACK} />
+				<div className="tbl-wrap">
+					<TableEmpty
+						icon="user"
+						title="این حساب حذف شده"
+						text="مشتری حسابش را حذف کرده؛ سفارش‌ها و مرجوعی‌هایش بی‌نام مانده‌اند و اطلاعات شخصی‌اش دیگر در دسترس نیست."
+					/>
+				</div>
+			</>
+		);
 	if (customerError)
 		return (
 			<>

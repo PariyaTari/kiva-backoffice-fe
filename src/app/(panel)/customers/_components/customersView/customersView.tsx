@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { PANEL_ERRORS as ERROR_BEHAVIOUR } from "@/app/(panel)/_utils/apiError";
 import ErrorComponent from "@/app/_components/common/errorComponent2/errorComponent2";
 import Loading from "@/app/_components/common/loading/loading";
 import { Icon } from "@/app/_components/icon/icons";
@@ -27,6 +26,7 @@ import { formatDate, formatPhone, formatToman } from "@/utils/format";
 import { PANEL_ROLES, ROLE_LABEL } from "@/utils/roles";
 import { withMappedError } from "@/utils/withMappedError";
 import { CustomersEndpoints } from "../../_api/customersEndpoints";
+import { ERROR_BEHAVIOUR } from "../../_utils/apiError";
 import RolesModal from "../rolesModal/rolesModal";
 
 /** The panel's role badges of a person (`CUSTOMER` left out). */

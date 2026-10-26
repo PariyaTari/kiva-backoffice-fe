@@ -12,7 +12,7 @@ import Badge from "@/app/_components/ui/badge/badge";
 import Button from "@/app/_components/ui/button/button";
 import Modal from "@/app/_components/ui/modal/modal";
 import { toast } from "@/store/notification.store";
-import { AdminProduct, AdminVariant } from "@/types/catalog.type";
+import { AdminProduct, AdminVariant, ProductMedia } from "@/types/catalog.type";
 import { toPersianDigits } from "@/utils/digits";
 import { formatPrice } from "@/utils/format";
 import { withMappedError } from "@/utils/withMappedError";
@@ -20,6 +20,12 @@ import { ProductsEndpoints } from "../../_api/productsEndpoints";
 import StockHistory from "../stockHistory/stockHistory";
 import StockModal, { StockTarget } from "../stockModal/stockModal";
 import VariantModal from "../variantModal/variantModal";
+
+/** A picture for the row: the primary media's thumbnail — a video's poster, never the video file itself in an `<img>`. */
+function thumbOf(media: ProductMedia[]): string | null {
+	const m = media.find((x) => x.isPrimary) ?? media[0];
+	return m ? (m.thumbnailUrl ?? (m.type === "VIDEO" ? (m.posterUrl ?? null) : m.url)) : null;
+}
 
 const LOW = 5;
 
@@ -55,7 +61,7 @@ export default function VariantsSection({ product }: { product: AdminProduct }) 
 				<span className="cell-prod" style={{ minWidth: 160 }}>
 					<span className="th-img">
 						{/* eslint-disable-next-line @next/next/no-img-element -- API image URL */}
-						{v.media[0] && <img src={v.media.find((m) => m.isPrimary)?.thumbnailUrl ?? v.media[0].thumbnailUrl ?? v.media[0].url} alt="" />}
+						{thumbOf(v.media) ? <img src={thumbOf(v.media)!} alt="" /> : v.media.length > 0 && <Icon name="video" />}
 					</span>
 					<span>
 						<span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>

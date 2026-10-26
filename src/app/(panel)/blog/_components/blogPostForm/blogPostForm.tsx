@@ -17,7 +17,7 @@ import Textarea from "@/app/_components/ui/textarea/textarea";
 import { STORE_REFRESH_MINUTES, STORE_URL } from "@/config/global";
 import { toast } from "@/store/notification.store";
 import { SeoMeta, toSeoInput } from "@/types/common.type";
-import { AdminBlogPost, BlogPostUpsertRequest, BlogStatus } from "@/types/content.type";
+import { AdminBlogAuthor, AdminBlogPost, BlogPostUpsertRequest, BlogStatus } from "@/types/content.type";
 import { toPersianDigits } from "@/utils/digits";
 import { formatDateTime, onSiteWithin } from "@/utils/format";
 import { fieldErrorsWith } from "@/utils/fieldErrors";
@@ -119,8 +119,8 @@ const toPayload = (v: Values): BlogPostUpsertRequest => ({
 
 type BlogPostFormProps = {
 	post: AdminBlogPost | null;
-	/** Authors the posts already have — the contract has no authors list (FEATURES §7 #2). */
-	authors: { id: number; name: string }[];
+	/** `GET /admin/blog/authors` — the default one is what a post without `authorId` gets. */
+	authors: AdminBlogAuthor[];
 	categories: { id: number; name: string }[];
 	onCreated?: (post: AdminBlogPost) => void;
 	onDelete?: () => void;
@@ -159,6 +159,7 @@ export default function BlogPostForm({ post, authors, categories, onCreated, onD
 	};
 	const server = fieldErrorsWith(save.error, CODE_FIELDS);
 	const unavailable = post?.unavailableProductIds ?? [];
+	const defaultAuthor = authors.find((a) => a.isDefault);
 	const err = (k: string) => (touched && local[k]) || server[k] || null;
 
 	const submit = (e: FormEvent<HTMLFormElement>) => {
@@ -284,7 +285,14 @@ export default function BlogPostForm({ post, authors, categories, onCreated, onD
 							</div>
 							{err("coverBackground") && <span className="err" style={{ display: "block" }}>{err("coverBackground")}</span>}
 						</div>
-						<Select label="نویسنده" placeholder="—" value={values.authorId} onChange={(e) => set("authorId", e.target.value)} options={authors.map((a) => ({ value: String(a.id), label: a.name }))} error={err("authorId")} />
+						<Select
+							label="نویسنده"
+							placeholder={defaultAuthor ? `پیش‌فرض (${defaultAuthor.name})` : "پیش‌فرض"}
+							value={values.authorId}
+							onChange={(e) => set("authorId", e.target.value)}
+							options={authors.map((a) => ({ value: String(a.id), label: a.title ? `${a.name} — ${a.title}` : a.name }))}
+							error={err("authorId")}
+						/>
 						<NumberInput label="زمان مطالعه (دقیقه)" labelNote="خالی = خودکار" value={values.readingMinutes} onChange={(n) => set("readingMinutes", n)} error={err("readingMinutes")} />
 						<ChipsInput label="برچسب‌ها" value={values.tags} onChange={(t) => set("tags", t)} />
 						{err("tags") && <span className="err" style={{ display: "block" }}>{err("tags")}</span>}

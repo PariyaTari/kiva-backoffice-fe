@@ -64,7 +64,7 @@ const pick = (arr) => arr[Math.floor(rand() * arr.length)];
 const digits = (n) => Array.from({ length: n }, () => Math.floor(rand() * 10)).join("");
 let CHANGE_SEQ = 0;
 
-const customers = users.filter((u) => u.roles.length === 1);
+const customers = users.filter((u) => u.roles.length === 1 && !u.deletedAt);
 const live = products.filter((p) => p.status === "ACTIVE");
 let NOTE_SEQ = 300, REFUND_SEQ = 40, RETURN_SEQ = 1012, ITEM_SEQ = 9000, CODE_SEQ = 220400;
 
@@ -199,6 +199,15 @@ orders.filter((o) => o.status === "PROCESSING").slice(0, 2).forEach((o) => {
 	root.group = joined.group = g;
 	const alone = makeOrder(customers[7], "RESERVED", 3.1 * DAY, { reserved: true, items: 2 });
 	alone.group = { code: "SG-3022", orderCodes: [alone.code], releaseAt: alone.paidAt + 4 * DAY };
+}
+// the deleted account's old order: kept for the books, every personal field gone (`DELETE /me`)
+{
+	const gone = users.find((u) => u.deletedAt);
+	if (gone) {
+		const o = makeOrder(gone, "DELIVERED", 40 * DAY);
+		Object.assign(o.address, { addressLine: null, postalCode: null, recipientName: null, recipientPhone: null });
+		Object.assign(o, { messengerPhone: null, customerNote: null });
+	}
 }
 orders.sort((a, b) => b.placedAt - a.placedAt);
 
@@ -368,7 +377,8 @@ export function adminOrder(o) {
 		preShipmentMedia: { status: o.mediaStatus, channel: o.messenger, channelName: MESSENGER[o.messenger], count: o.media.length, hasVideo: o.media.some((m) => m.type === "VIDEO"), sentAt: iso(o.mediaSentAt) },
 		actions: {},
 		items: o.items.map((it) => itemView(o, it)),
-		address: { ...o.address, fullText: `${o.address.provinceName}، ${o.address.cityName}، ${o.address.addressLine}` },
+		// an anonymised order keeps only the province and city
+		address: { ...o.address, fullText: [o.address.provinceName, o.address.cityName, o.address.addressLine].filter(Boolean).join("، ") },
 		totals: o.totals, payment: o.payments[o.payments.length - 1] ?? null, preShipmentMediaDetail: preShipmentView(o),
 		timeline: o.events.map((e) => ({ status: e.status, label: e.label, at: iso(e.at), note: e.note })), customerNote: o.customerNote, gift: null,
 		returns: returns.filter((r) => r.orderCode === o.code).map(returnView), invoiceUrl: null,
@@ -387,7 +397,7 @@ route("GET", "/admin/orders", (ctx) => {
 	const term = q.q ? normQ(q.q).toUpperCase() : "";
 	const rest = orders.filter((o) => {
 		const u = userOf(o);
-		if (term && !(o.code.includes(term) || u?.phone.includes(term.replace(/\D/g, "") || "~") || (fullNameOf(u) || "").includes(normQ(q.q)))) return false;
+		if (term && !(o.code.includes(term) || u?.phone?.includes(term.replace(/\D/g, "") || "~") || (fullNameOf(u) || "").includes(normQ(q.q)))) return false;
 		if (q.shippingMethod && o.shippingMethod !== q.shippingMethod) return false;
 		if (q.reserved === "true" && o.status !== "RESERVED") return false;
 		if (q.reserved === "false" && o.status === "RESERVED") return false;

@@ -135,7 +135,9 @@ function ShareBars({ title, mix, label }: { title: string; mix: Record<string, n
 /** ADMIN's report for a range (`GET /admin/reports/overview`). */
 function Report() {
 	const [f, setF] = useUrlFilters({ range: "30" });
-	const from = tehranDate(Number(f.range) - 1);
+	// a hand-edited `?range=` falls back to the default (a NaN date would throw in `Intl`)
+	const range = RANGES.some((x) => x.value === f.range) ? f.range : "30";
+	const from = tehranDate(Number(range) - 1);
 	const to = tehranDate(0);
 
 	const report = useQuery({
@@ -161,8 +163,8 @@ function Report() {
 							key={x.value}
 							type="button"
 							role="tab"
-							aria-selected={f.range === x.value}
-							className={classNames({ on: f.range === x.value })}
+							aria-selected={range === x.value}
+							className={classNames({ on: range === x.value })}
 							onClick={() => setF({ range: x.value })}
 						>
 							{x.label}

@@ -201,13 +201,14 @@ export default function SettingsView() {
 				<div className="stack" style={{ marginTop: 14, gap: 10 }}>
 					{v.paymentGateways.map((g, i) => (
 						<div key={g.code} className="row-card" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-							<span style={{ width: 36, height: 36, borderRadius: 10, background: g.brandColor, color: "#fff", display: "grid", placeItems: "center", fontWeight: 900 }}>{g.initial}</span>
+							<span style={{ width: 36, height: 36, borderRadius: 10, background: "var(--purple)", color: "#fff", display: "grid", placeItems: "center", fontWeight: 900 }}>{g.name.charAt(0)}</span>
 							<b>{g.name}</b>
+							{g.isActive && !g.available && <span className="muted" style={{ fontSize: 12.5 }}>روشن است ولی سرور هنوز به این درگاه وصل نیست؛ به مشتری پیشنهاد نمی‌شود.</span>}
 							<span style={{ marginInlineStart: "auto", display: "flex", gap: 18, alignItems: "center" }}>
 								<label className="check">
 									<input type="radio" name="defaultGateway" checked={g.isDefault} onChange={() => set("paymentGateways", v.paymentGateways.map((x) => ({ ...x, isDefault: x.code === g.code })))} /> پیش‌فرض
 								</label>
-								<Switch label="فعال" checked={g.available} onChange={(e) => setAt("paymentGateways", i, { available: e.target.checked })} />
+								<Switch label="فعال" checked={g.isActive} onChange={(e) => setAt("paymentGateways", i, { isActive: e.target.checked })} />
 							</span>
 						</div>
 					))}

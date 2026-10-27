@@ -26,8 +26,11 @@ export type Category = CategoryRef & {
 	seo?: SeoMeta;
 };
 
-/** 1.5.0 `AdminCategory` — plus the image's media id, so the edit form can keep the current image. */
-export type AdminCategory = Category & { imageMediaId: string | null };
+/**
+ * 1.5.0 `AdminCategory` — plus the image's media id, so the edit form can keep the current image; 1.23.0 `seoInput`, the SEO
+ * as saved (`seo` has the shop's fallbacks — the form edits and sends back `seoInput`).
+ */
+export type AdminCategory = Category & { imageMediaId: string | null; seoInput: SeoInput };
 
 export type Material = MaterialRef & { description: string | null; careInstructions: string[]; productCount?: number };
 
@@ -88,7 +91,8 @@ export type AdminVariant = {
 	hasVideo?: boolean;
 	barcode: string | null;
 	isActive: boolean;
-	sortOrder?: number;
+	/** 1.23.0 — its place among the product's colours. */
+	sortOrder: number;
 	/** Physical count. */
 	stockOnHand: number;
 	/** Carts being paid + orders not shipped yet. */
@@ -96,9 +100,9 @@ export type AdminVariant = {
 	stockAvailable: number;
 	soldCount: number;
 	stockAlertSubscribers: number;
-	/** Not in the contract's `AdminVariant`, but in `VariantUpsertRequest` — present when the server echoes them. */
-	priceOverride?: Money | null;
-	compareAtPriceOverride?: Money | null;
+	/** 1.23.0 — the colour's own price as saved; `null` = it follows the product's (`price` is what it sells for). */
+	priceOverride: Money | null;
+	compareAtPriceOverride: Money | null;
 };
 
 export type AdminProduct = {
@@ -118,7 +122,13 @@ export type AdminProduct = {
 	specs: ProductSpecs;
 	tags: string[];
 	policies?: { returnable?: boolean; reservable?: boolean; maxPerOrder?: number };
+	/** What the shop shows (the default colour's price, SEO with fallbacks) — not the form's values. */
 	seo: SeoMeta;
+	/** 1.23.0 — the product's own price (`price` / `compareAtPrice` of the form); `price` above is the default colour's. */
+	basePrice: Money;
+	baseCompareAtPrice: Money | null;
+	/** 1.23.0 — the SEO as saved; the form edits and sends back this one. */
+	seoInput: SeoInput;
 	publishedAt: string | null;
 	updatedAt: string;
 	hasVideo?: boolean;

@@ -35,7 +35,7 @@ let settings = {
 		{ label: "جمعه و تعطیلات", weekdays: ["FRIDAY"], from: null, to: null, messengerOnly: true },
 	],
 	social: D.SOCIAL.map((s) => ({ channel: s.channel, name: s.name, url: s.url, handle: s.handle })),
-	paymentGateways: D.GATEWAYS.map((g) => ({ code: g.code, name: g.name, logoUrl: null, brandColor: g.brandColor, initial: g.initial, isDefault: g.isDefault, available: g.available })),
+	paymentGateways: D.GATEWAYS.map((g) => ({ code: g.code, name: g.name, isActive: g.available, isDefault: g.isDefault, available: g.available })),
 	siteStats: { happyCustomers: 12000, preShipmentPhotos: 48000, photoMatchSatisfactionPercent: 98, productModels: 60 },
 	features: { reviews: true, wishlistShare: true, newsletter: true, stockAlerts: true },
 };
@@ -66,7 +66,7 @@ route("PUT", "/admin/settings", (ctx) => {
 		.need(/^0\d{10}$/.test(b.supportPhone || ""), "supportPhone", "تلفن ۱۱ رقمی با ۰ شروع شود.")
 		.need(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.supportEmail || ""), "supportEmail", "ایمیل معتبر نیست.")
 		.need((b.paymentGateways || []).filter((g) => g.isDefault).length === 1, "paymentGateways", "دقیقاً یک درگاه پیش‌فرض لازم است.")
-		.need((b.paymentGateways || []).some((g) => g.isDefault && g.available), "paymentGateways", "درگاه پیش‌فرض باید فعال باشد.");
+		.need((b.paymentGateways || []).some((g) => g.isDefault && g.isActive), "paymentGateways", "درگاه پیش‌فرض باید فعال باشد.");
 	(b.shippingMethods || []).forEach((m, i) => {
 		c.need(String(m.name ?? "").trim(), `shippingMethods.${i}.name`, "نام روش ارسال لازم است.");
 		c.need(nonNeg(m.baseCost), `shippingMethods.${i}.baseCost`, "هزینه عدد صحیح نامنفی.");

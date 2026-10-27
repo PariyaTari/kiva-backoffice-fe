@@ -50,6 +50,13 @@ export type BlogPostDetail = BlogPostSummary & {
  * are empty; a «کارت محصول» whose product left the store stays with `product = null` and its id in `unavailableProductIds`.
  */
 export type AdminBlogPost = BlogPostDetail & {
+	/**
+	 * 1.23.0 — the form's own values as saved (`null` = worked out from the text / the title). `excerpt`,
+	 * `readingMinutes` and `seo` are what the magazine shows, fallbacks filled in; the form edits and sends back these.
+	 */
+	excerptInput: string | null;
+	readingMinutesInput: number | null;
+	seoInput: SeoInput;
 	status: BlogStatus;
 	/** `PUBLISHED` with a future `publishedAt` — not on the magazine yet. */
 	scheduled: boolean;
@@ -106,6 +113,9 @@ export type FaqGroupInput = { id: string; name: string; icon?: IconName | null; 
 
 /** `GET /pages/{slug}` — `seo` is complete there (canonical built by the server, no share image yet). */
 export type StaticPage = { slug: string; title: string; content: HtmlString; updatedAt: string; seo: SeoMeta };
+
+/** 1.23.0 `AdminStaticPage` — the edit form's read (`GET /admin/pages/{slug}`, never cached): plus the SEO as saved. */
+export type AdminStaticPage = StaticPage & { seoInput: SeoInput };
 
 /** 1.12.0 `StaticPageUpsertRequest` — `slug` absent or the path's own; title 1–120; content 1–50,000 after cleaning. */
 export type StaticPageUpsertRequest = { slug?: string | null; title: string; content: string; seo?: SeoInput | null };

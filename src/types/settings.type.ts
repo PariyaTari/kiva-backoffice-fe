@@ -17,7 +17,11 @@ export type ShippingMethod = {
 
 export type SupportHours = { label: string; weekdays: Weekday[]; from: string | null; to: string | null; messengerOnly: boolean };
 export type SocialLink = { channel: SocialChannel; name: string; url: string; handle: string };
-export type PaymentGateway = { code: PaymentGatewayCode; name: string; logoUrl: string | null; brandColor: string; initial: string; isDefault: boolean; available: boolean };
+/**
+ * `AdminPaymentGatewaySetting` — the switch is `isActive` (the shop turned it on); `available` is read-only: active **and**
+ * the server has an adapter for it, so only those are offered to customers. `PUT` reads `code`, `isActive`, `isDefault`.
+ */
+export type PaymentGateway = { code: PaymentGatewayCode; name: string; isActive: boolean; isDefault: boolean; available: boolean };
 export type SiteStats = { happyCustomers: number; preShipmentPhotos: number; photoMatchSatisfactionPercent: number; productModels: number };
 
 export type AdminSettings = {

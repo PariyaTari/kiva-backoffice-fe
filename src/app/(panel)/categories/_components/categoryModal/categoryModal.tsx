@@ -46,7 +46,8 @@ function CategoryForm({ category, onClose, nextSortOrder }: Omit<CategoryModalPr
 	const [image, setImage] = useState<PickedMedia>(category?.imageMediaId && category.imageUrl ? { id: category.imageMediaId, url: category.imageUrl } : null);
 	const [sortOrder, setSortOrder] = useState<number | null>(category?.sortOrder ?? nextSortOrder);
 	const [showInMenu, setShowInMenu] = useState(category?.showInMenu ?? true);
-	const [seo, setSeo] = useState<SeoMeta>(category?.seo ?? {});
+	// the SEO as saved — `category.seo` has the shop's fallbacks, which saved back would become the category's own
+	const [seo, setSeo] = useState<SeoMeta>(category?.seoInput ?? {});
 	const [touched, setTouched] = useState(false);
 
 	const colors = useQuery({

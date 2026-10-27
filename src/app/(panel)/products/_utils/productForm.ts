@@ -44,8 +44,9 @@ export function toFormValues(p?: AdminProduct | null): ProductFormValues {
 		bagType: p?.bagType ?? "",
 		materialId: p?.material ? String(p.material.id) : "",
 		materialDescription: p?.materialDescription ?? "",
-		price: p?.price.price ?? null,
-		compareAtPrice: p?.price.compareAtPrice ?? null,
+		// the product's own price — `p.price` is the card's, the default colour's (which may be that colour's own)
+		price: p?.basePrice ?? null,
+		compareAtPrice: p?.baseCompareAtPrice ?? null,
 		shortDescription: p?.shortDescription ?? "",
 		description: p?.description ?? "",
 		highlights: p?.highlights ?? [],
@@ -56,7 +57,8 @@ export function toFormValues(p?: AdminProduct | null): ProductFormValues {
 		returnable: p?.policies?.returnable ?? true,
 		reservable: p?.policies?.reservable ?? true,
 		sortPriority: p?.sortPriority ?? 0,
-		seo: p?.seo ?? { title: null, description: null, canonicalUrl: null, ogImageUrl: null, noIndex: false },
+		// the SEO as saved — `p.seo` has the shop's fallbacks, which saved back would become the product's own
+		seo: p?.seoInput ?? { title: null, description: null, noIndex: false },
 		variants: [],
 	};
 }

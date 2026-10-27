@@ -67,6 +67,9 @@ const adminView = (p, withContent = true) => {
 	const d = detailView(p, { panel: true });
 	return {
 		...d, ...(withContent ? {} : { blocks: [], toc: [] }),
+		// 1.23.0 — the form's own values as saved (the seeded posts were written by hand)
+		excerptInput: "excerptInput" in p ? p.excerptInput : p.excerpt, readingMinutesInput: "readingMinutesInput" in p ? p.readingMinutesInput : p.readingMinutes,
+		seoInput: { title: p.seo?.title ?? null, description: p.seo?.description ?? null, noIndex: !!p.seo?.noIndex },
 		status: p.status, scheduled: p.status === "PUBLISHED" && p.publishedAt != null && p.publishedAt > Date.now(),
 		createdAt: iso(p.createdAt), createdBy: p.createdBy, updatedBy: p.updatedBy,
 		unavailableProductIds: p.blocks.filter((b) => b.type === "PRODUCT" && b.productId && !storeProduct(b.productId)).map((b) => b.productId),
@@ -119,6 +122,7 @@ function postFrom(b, prev, me) {
 		title: b.title.trim(), slug: b.slug, excerpt: b.excerpt ?? "", lead: b.lead ?? "", categoryId: Number(b.categoryId), authorId: Number(b.authorId) || authors.find((a) => a.isDefault).id,
 		cover: coverAsset ? { id: coverAsset.id, type: coverAsset.type, url: coverAsset.url, thumbnailUrl: coverAsset.thumbnailUrl, alt: b.title } : b.coverMediaId ? prev?.cover ?? null : null,
 		coverBackground: b.coverBackground ?? null, readingMinutes: b.readingMinutes ?? Math.max(1, Math.round(words / 180)),
+		excerptInput: String(b.excerpt ?? "").trim() || null, readingMinutesInput: b.readingMinutes ?? null,
 		blocks: b.blocks.map((k) => {
 			const a = k.imageMediaId ? assets.get(k.imageMediaId) : null;
 			const prevImage = prev?.blocks.find((x) => x.image?.id === k.imageMediaId)?.image;
@@ -235,8 +239,14 @@ const pages = new Map([
 	["terms", { slug: "terms", title: "قوانین و حریم خصوصی", content: "<h2>سفارش و پرداخت</h2><p>همه‌ی قیمت‌ها به تومان است…</p><h2>عکس قبل از ارسال</h2><p>قبل از بسته‌بندی، از همان کیف عکس می‌فرستیم…</p><h2>حریم خصوصی</h2><p>اطلاعات تماس شما فقط برای ارسال سفارش استفاده می‌شود.</p>", updatedAt: Date.now() - 20 * DAY, seo: pageSeo("terms", null, "قوانین و حریم خصوصی") }],
 	["about", { slug: "about", title: "درباره‌ی کیوا", content: "<h2>هرچی ببینی، همون می‌رسه</h2><p>کیوا از یک کارگاه کوچک شروع شد…</p>", updatedAt: Date.now() - 45 * DAY, seo: pageSeo("about", null, "درباره‌ی کیوا") }],
 ]);
-const pageView = (p) => ({ ...p, updatedAt: iso(p.updatedAt) });
+const pageView = (p) => ({ slug: p.slug, title: p.title, content: p.content, seo: p.seo, updatedAt: iso(p.updatedAt) });
+/** 1.23.0 `AdminStaticPage` — the edit form's read: plus the SEO as saved. */
+const adminPageView = (p) => ({ ...pageView(p), seoInput: { title: p.seoInput?.title ?? null, description: p.seoInput?.description ?? null, noIndex: !!p.seoInput?.noIndex } });
 route("GET", "/pages/:slug", (ctx) => pageView(pages.get(ctx.params.slug) || notFound("PAGE_NOT_FOUND", "این صفحه پیدا نشد.")));
+route("GET", "/admin/pages/:slug", (ctx) => {
+	staff(ctx, ...ROLES);
+	return adminPageView(pages.get(ctx.params.slug) || notFound("NOT_FOUND", "این صفحه پیدا نشد."));
+});
 route("GET", "/admin/pages", (ctx) => {
 	staff(ctx, ...ROLES);
 	return [...pages.values()].sort((a, b) => b.updatedAt - a.updatedAt).map((p) => ({ slug: p.slug, title: p.title, updatedAt: iso(p.updatedAt) }));
@@ -253,7 +263,7 @@ route("PUT", "/admin/pages/:slug", (ctx) => {
 		.need(!b.seo?.title || String(b.seo.title).length <= 70, "seo.title", "عنوان SEO حداکثر ۷۰ حرف.")
 		.need(!b.seo?.description || String(b.seo.description).length <= 170, "seo.description", "توضیح SEO حداکثر ۱۷۰ حرف.")
 		.done();
-	const p = { slug, title: b.title.trim(), content: b.content, updatedAt: Date.now(), seo: pageSeo(slug, b.seo, b.title.trim()) };
+	const p = { slug, title: b.title.trim(), content: b.content, updatedAt: Date.now(), seo: pageSeo(slug, b.seo, b.title.trim()), seoInput: b.seo ?? null };
 	pages.set(slug, p);
-	return pageView(p);
+	return adminPageView(p);
 });

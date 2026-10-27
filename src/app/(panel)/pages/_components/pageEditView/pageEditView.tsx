@@ -15,7 +15,7 @@ import Input from "@/app/_components/ui/input/input";
 import { STORE_REFRESH_MINUTES, STORE_URL } from "@/config/global";
 import { toast } from "@/store/notification.store";
 import { toSeoInput } from "@/types/common.type";
-import { StaticPage } from "@/types/content.type";
+import { AdminStaticPage } from "@/types/content.type";
 import { toErrorView } from "@/utils/apiError";
 import { fieldErrorsOf } from "@/utils/fieldErrors";
 import { toPersianDigits } from "@/utils/digits";
@@ -69,10 +69,10 @@ export default function PageEditView({ slug }: { slug: string }) {
 	return <PageForm key={page.data?.updatedAt ?? "new"} slug={slug} page={exists ? (page.data ?? null) : null} />;
 }
 
-function PageForm({ slug, page }: { slug: string; page: StaticPage | null }) {
+function PageForm({ slug, page }: { slug: string; page: AdminStaticPage | null }) {
 	const queryClient = useQueryClient();
 	// what the form opened with — saving refetches the page and remounts the form (`key={updatedAt}`)
-	const [base] = useState(() => ({ title: page?.title ?? KNOWN_PAGES.find((p) => p.slug === slug)?.title ?? "", content: page?.content ?? "<h2></h2>\n<p></p>", seo: page?.seo ?? {} }));
+	const [base] = useState(() => ({ title: page?.title ?? KNOWN_PAGES.find((p) => p.slug === slug)?.title ?? "", content: page?.content ?? "<h2></h2>\n<p></p>", seo: page?.seoInput ?? {} }));
 	const [title, setTitle] = useState(base.title);
 	const [content, setContent] = useState(base.content);
 	const [seo, setSeo] = useState(base.seo);

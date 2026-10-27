@@ -43,6 +43,8 @@ const adminVariant = (p, v) => ({
 	soldCount: v.soldCount, stockAlertSubscribers: v.stockAlertSubscribers, priceOverride: v.priceOverride, compareAtPriceOverride: v.compareAtPriceOverride,
 });
 const etagOf = (p) => `"p${p.id}-v${p.version}"`;
+/** 1.23.0 `SeoInput` — the form's three SEO fields as saved. */
+const seoInput = (seo) => ({ title: seo?.title ?? null, description: seo?.description ?? null, noIndex: !!seo?.noIndex });
 function adminProduct(p) {
 	const m = materialById(p.materialId);
 	return {
@@ -51,6 +53,8 @@ function adminProduct(p) {
 		shortDescription: p.shortDescription, description: p.description, highlights: p.highlights, specs: p.specs, specTable: [], tags: p.tags,
 		policies: { returnable: p.returnable, returnWindowDays: 7, reservable: p.reservable, reservationDays: 4, preShipmentPhoto: true, maxPerOrder: p.maxPerOrder },
 		seo: p.seo, publishedAt: iso(p.publishedAt), updatedAt: iso(p.updatedAt), hasVideo: p.hasVideo, rating: p.rating, soldCount: p.soldCount,
+		// 1.23.0 — the form's own price and SEO (`price` is the card's, `seo` the shop's)
+		basePrice: p.price, baseCompareAtPrice: p.compareAtPrice ?? null, seoInput: seoInput(p.seo),
 		status: p.status, adminVariants: [...p.variants].sort((a, b) => a.sortOrder - b.sortOrder).map((v) => adminVariant(p, v)), variants: [],
 		newUntil: p.newUntil, sortPriority: p.sortPriority, viewsCount: p.viewsCount, conversionRate: p.viewsCount ? Math.round((p.soldCount / p.viewsCount) * 1000) / 10 : 0,
 		createdAt: iso(p.createdAt), createdBy: p.createdBy, etag: etagOf(p), publishAt: iso(p.publishAt ?? null),
@@ -68,7 +72,7 @@ function listItem(p) {
 const categoryView = (c) => ({
 	id: c.id, slug: c.slug, name: c.name, description: c.description, icon: { bagType: c.iconBagType, colorKey: c.iconColorKey, imageUrl: null },
 	imageUrl: c.imageMediaId ? assets.get(c.imageMediaId)?.url ?? null : null, productCount: products.filter((p) => p.categoryId === c.id && p.status !== "ARCHIVED").length,
-	sortOrder: c.sortOrder, showInMenu: c.showInMenu, seo: c.seo, imageMediaId: c.imageMediaId ?? null,
+	sortOrder: c.sortOrder, showInMenu: c.showInMenu, seo: c.seo, imageMediaId: c.imageMediaId ?? null, seoInput: seoInput(c.seo),
 });
 const materialView = (m) => ({ ...m, productCount: products.filter((p) => p.materialId === m.id).length });
 const colorFull = (c) => ({ ...colorView(c.key), productCount: products.filter((p) => p.variants.some((v) => v.colorKey === c.key)).length });

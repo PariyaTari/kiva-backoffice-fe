@@ -75,19 +75,21 @@ const toBlocks = (p: AdminBlogPost): EditableBlock[] => {
 const toValues = (p: AdminBlogPost | null): Values => ({
 	title: p?.title ?? "",
 	slug: p?.slug ?? "",
-	excerpt: p?.excerpt ?? "",
+	// the form's own values — `p.excerpt`, `p.readingMinutes` and `p.seo` are worked out when empty, and saved back
+	// they would stop following the text
+	excerpt: p?.excerptInput ?? "",
 	lead: p?.lead ?? "",
 	categoryId: p?.category ? String(p.category.id) : "",
 	authorId: p?.author ? String(p.author.id) : "",
 	cover: p?.cover ? { id: p.cover.id, url: p.cover.thumbnailUrl || p.cover.url } : null,
 	coverBackground: p?.coverBackground ?? "",
-	readingMinutes: p?.readingMinutes ?? null,
+	readingMinutes: p?.readingMinutesInput ?? null,
 	blocks: p ? toBlocks(p) : [newBlock("HEADING"), newBlock("PARAGRAPH")],
 	tags: p?.tags ?? [],
 	isFeatured: p?.isFeatured ?? false,
 	status: p?.status ?? "DRAFT",
 	publishedAt: p?.publishedAt ?? null,
-	seo: p?.seo ?? {},
+	seo: p?.seoInput ?? {},
 });
 
 const toPayload = (v: Values): BlogPostUpsertRequest => ({
@@ -194,8 +196,9 @@ export default function BlogPostForm({ post, authors, categories, onCreated, onD
 						</div>
 						<Textarea
 							label="خلاصه"
-							labelNote="کارت مقاله"
+							labelNote="کارت مقاله — خالی = از متن"
 							maxLength={300}
+							placeholder={post?.excerptInput == null ? (post?.excerpt ?? undefined) : undefined}
 							value={values.excerpt}
 							onChange={(e) => set("excerpt", e.target.value)}
 							error={err("excerpt")}

@@ -1,9 +1,10 @@
 import { httpClient } from "@/httpClient/HttpClient";
-import { AdminStaticPageSummary, StaticPage, StaticPageUpsertRequest } from "@/types/content.type";
+import { AdminStaticPage, AdminStaticPageSummary, StaticPageUpsertRequest } from "@/types/content.type";
 
 /**
  * Static pages (terms, privacy, …): every written page is in `GET /admin/pages` (no content, by slug, not cached);
- * a page's content is the public `GET /pages/{slug}`; `PUT /admin/pages/{slug}` creates or replaces (no delete).
+ * a page's content is `GET /admin/pages/{slug}` (1.23.0, not cached — the public `GET /pages/{slug}` may be up to 5
+ * minutes old); `PUT /admin/pages/{slug}` creates or replaces (no delete) and answers the same shape.
  */
 export const PagesEndpoints = {
 	getPages: async () => {
@@ -12,12 +13,12 @@ export const PagesEndpoints = {
 	},
 
 	getPage: async (slug: string) => {
-		const res = await httpClient.call<StaticPage>({ method: "GET", url: `pages/${encodeURIComponent(slug)}` });
+		const res = await httpClient.call<AdminStaticPage>({ method: "GET", url: `admin/pages/${encodeURIComponent(slug)}` });
 		return res.data;
 	},
 
 	save: async (slug: string, payload: StaticPageUpsertRequest) => {
-		const res = await httpClient.call<StaticPage>({ method: "PUT", url: `admin/pages/${encodeURIComponent(slug)}`, data: payload });
+		const res = await httpClient.call<AdminStaticPage>({ method: "PUT", url: `admin/pages/${encodeURIComponent(slug)}`, data: payload });
 		return res.data;
 	},
 };
